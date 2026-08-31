@@ -1,0 +1,853 @@
+<title>Reels to Recipes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --paper:#F7F3EC; --surface:#FFFDF9; --surface-2:#F1EADE;
+  --ink:#241A15; --ink-2:#6E5C51; --ink-3:#96857A;
+  --line:#E3D9CA; --line-2:#D2C5B2;
+  --accent:#A6301F; --accent-ink:#FFF6F3;
+  --shadow:0 1px 2px rgba(60,40,28,.05), 0 8px 20px -12px rgba(60,40,28,.22);
+  --fam-ingredient:#8A5A2B; --fam-dish:#A6301F; --fam-time:#9A6C10;
+  --fam-nutrition:#4C6A3C; --fam-diet:#2F6D5C; --fam-baby:#8A4A72; --fam-cuisine:#3B5C86;
+  --warn:#9A6C10;
+  --chip-tint:14%; --chip-border:34%; --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#17120F; --surface:#221B17; --surface-2:#2C2320;
+    --ink:#F2E9E0; --ink-2:#B3A196; --ink-3:#8B7A6E;
+    --line:#362B25; --line-2:#493A32;
+    --accent:#E4705A; --accent-ink:#23120D;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -14px rgba(0,0,0,.7);
+    --fam-ingredient:#D19A5E; --fam-dish:#E4705A; --fam-time:#D9A63C;
+    --fam-nutrition:#8FB474; --fam-diet:#5FB49C; --fam-baby:#D08BB6; --fam-cuisine:#7FA8D6;
+    --warn:#D9A63C;
+    --chip-tint:18%; --chip-border:40%;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#17120F; --surface:#221B17; --surface-2:#2C2320;
+  --ink:#F2E9E0; --ink-2:#B3A196; --ink-3:#8B7A6E;
+  --line:#362B25; --line-2:#493A32;
+  --accent:#E4705A; --accent-ink:#23120D;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -14px rgba(0,0,0,.7);
+  --fam-ingredient:#D19A5E; --fam-dish:#E4705A; --fam-time:#D9A63C;
+  --fam-nutrition:#8FB474; --fam-diet:#5FB49C; --fam-baby:#D08BB6; --fam-cuisine:#7FA8D6;
+  --warn:#D9A63C;
+  --chip-tint:18%; --chip-border:40%;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:Karla,"Noto Sans SC","Helvetica Neue",Arial,sans-serif;
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+:root[lang="zh"] body, body[data-lang="zh"]{font-family:"Noto Sans SC",Karla,sans-serif}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+body[data-lang="zh"] .eyebrow{letter-spacing:.06em}
+
+.topbar{
+  position:sticky;top:0;z-index:30;
+  background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+}
+.topbar-inner{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;margin-right:auto}
+.brand h1{margin:0;font-family:Newsreader,Georgia,serif;font-weight:600;font-size:21px;letter-spacing:-.01em;line-height:1}
+body[data-lang="zh"] .brand h1{font-family:"Noto Sans SC",sans-serif;font-weight:700;font-size:19px}
+.brand span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.search{position:relative;flex:1 1 220px;min-width:170px}
+.search input{width:100%;padding:9px 12px 9px 34px;background:var(--surface);
+  border:1px solid var(--line-2);border-radius:999px;transition:border-color .15s}
+.search input::placeholder{color:var(--ink-3)}
+.search input:focus{border-color:var(--accent);outline:none}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-3)}
+.lang{
+  display:inline-flex;border:1px solid var(--accent);border-radius:999px;overflow:hidden;flex:none;
+}
+.lang button{padding:6px 12px;font-size:12.5px;font-weight:700;color:var(--accent);line-height:1.2}
+.lang button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+
+.sync{font-size:13px;font-weight:700;color:var(--ink-3);min-width:10px;text-align:center}
+.sync[data-state="error"]{color:var(--accent)}
+.view.import{border-style:dashed;margin-left:auto}
+.view.import[disabled]{opacity:.5;cursor:progress}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 70px;display:grid;grid-template-columns:1fr}
+@media (min-width:900px){.wrap{grid-template-columns:290px 1fr;gap:36px;padding-top:8px}}
+
+/* Quick rail: the ranking made visible on a phone — highest-ranked tags first,
+   swipeable, with the full grouped panel one tap away. */
+.rail-wrap{border-bottom:1px solid var(--line);background:var(--paper)}
+.rail{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;gap:6px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail::-webkit-scrollbar{display:none}
+.rail .chip{flex:none}
+.rail-all{flex:none;padding:5px 11px;border-radius:999px;border:1px dashed var(--line-2);
+  font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+@media (min-width:900px){.rail-wrap{display:none}}
+
+.panel{padding:14px 0 0;border-top:1px solid var(--line);margin-top:26px}
+@media (min-width:900px){.panel{border-top:none;margin-top:0}}
+@media (min-width:900px){
+  .panel{position:sticky;top:64px;align-self:start;max-height:calc(100vh - 80px);
+    overflow-y:auto;padding:20px 4px 24px 0;scrollbar-width:thin;order:-1}
+}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.panel-note{font-size:11.5px;color:var(--ink-3);margin:0 0 12px;line-height:1.5}
+.panel-note b{color:var(--ink-2);font-weight:600}
+.linkbtn{font-size:11.5px;font-weight:600;color:var(--accent);text-decoration:underline;
+  text-underline-offset:2px;text-decoration-thickness:1px;white-space:nowrap}
+.mode{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden;
+  margin-bottom:16px;background:var(--surface)}
+.mode button{padding:5px 13px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.mode button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+
+.family{margin-bottom:18px}
+.family > .eyebrow{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.family > .eyebrow::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--fam);flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line-2);font-size:13px;font-weight:500;
+  color:var(--ink-2);transition:background .12s,border-color .12s,color .12s;white-space:nowrap}
+.chip:hover{border-color:var(--fam);color:var(--ink)}
+.chip .n{font-size:10.5px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{
+  background:color-mix(in srgb, var(--fam) var(--chip-tint), var(--surface));
+  border-color:color-mix(in srgb, var(--fam) var(--chip-border), var(--surface));
+  color:var(--fam);font-weight:600}
+.chip[aria-pressed="true"] .n{color:var(--fam);opacity:.75}
+.chip[data-hot="1"]::after{content:"";width:4px;height:4px;border-radius:50%;background:var(--fam);opacity:.55}
+.chip.is-empty{opacity:.38}
+
+main{padding-top:18px;min-width:0}
+.count{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:clamp(27px,6vw,38px);
+  line-height:1;margin:0 0 12px;letter-spacing:-.02em}
+body[data-lang="zh"] .count{font-family:"Noto Sans SC",sans-serif;font-weight:700;letter-spacing:0}
+.count em{font-style:italic;color:var(--accent)}
+body[data-lang="zh"] .count em{font-style:normal}
+
+.views{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.view{padding:5px 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);
+  font-size:12.5px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.view[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.view .badge{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;
+  background:var(--warn);color:#fff;font-variant-numeric:tabular-nums}
+
+.selected-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.selected-bar:empty{display:none}
+.sel{display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;
+  font-size:12.5px;font-weight:600;
+  background:color-mix(in srgb, var(--fam) var(--chip-tint), var(--surface));
+  border:1px solid color-mix(in srgb, var(--fam) var(--chip-border), var(--surface));color:var(--fam)}
+.sel button{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:13px;line-height:1;opacity:.7}
+.sel button:hover{opacity:1}
+
+.grid{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:560px){.grid{grid-template-columns:1fr 1fr}}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--fam,var(--accent));border-radius:var(--r);
+  box-shadow:var(--shadow);transition:transform .14s ease,border-color .14s}
+.card:hover{transform:translateY(-2px)}
+.card > .open{display:flex;flex-direction:column;gap:8px;width:100%;text-align:left;padding:14px 40px 13px 15px}
+.card h3{margin:0;font-family:Newsreader,Georgia,serif;font-weight:600;font-size:19px;
+  line-height:1.25;letter-spacing:-.01em;text-wrap:balance}
+body[data-lang="zh"] .card h3{font-family:"Noto Sans SC",sans-serif;font-weight:700;font-size:17.5px;letter-spacing:0}
+.card .meta{font-size:12px;color:var(--ink-3)}
+.card .meta b{font-weight:600;color:var(--ink-2)}
+.card-tags{display:flex;flex-wrap:wrap;gap:4px;padding-top:2px}
+.tag-mini{font-size:11px;font-weight:600;padding:2.5px 7px;border-radius:5px;
+  background:color-mix(in srgb, var(--fam) 12%, var(--surface));color:var(--fam)}
+.tag-mini.more{background:var(--surface-2);color:var(--ink-3)}
+.heart{position:absolute;top:11px;right:11px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3)}
+.heart:hover{background:var(--surface-2);color:var(--accent)}
+.heart[aria-pressed="true"]{color:var(--accent)}
+.heart[aria-pressed="true"] svg{fill:currentColor}
+.flag{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--warn)}
+.flag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.flag.done{color:var(--fam-nutrition)}
+.flag.done::before{background:var(--fam-nutrition)}
+.card.review{border-left-color:var(--warn)}
+
+.empty{border:1px dashed var(--line-2);border-radius:var(--r);padding:26px 20px;text-align:center;color:var(--ink-2)}
+.empty p{margin:0 0 4px}
+
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(24,16,12,.45);
+  backdrop-filter:blur(2px);display:grid;place-items:end center}
+@media (min-width:760px){.scrim{place-items:center}}
+.drawer{background:var(--surface);width:100%;max-width:620px;max-height:92vh;overflow-y:auto;
+  border-radius:16px 16px 0 0;padding:20px 20px 34px;border:1px solid var(--line)}
+@media (min-width:760px){.drawer{border-radius:14px;max-height:86vh;padding:26px 28px 32px}}
+.drawer h2{font-family:Newsreader,Georgia,serif;font-weight:600;font-size:25px;line-height:1.18;
+  margin:6px 0 2px;letter-spacing:-.015em;text-wrap:balance}
+body[data-lang="zh"] .drawer h2{font-family:"Noto Sans SC",sans-serif;font-weight:700;font-size:23px;letter-spacing:0}
+.drawer-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.close{font-size:22px;line-height:1;color:var(--ink-3);padding:2px 6px}
+.close:hover{color:var(--ink)}
+.drawer h4{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin:20px 0 8px}
+.drawer ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.drawer ul li{padding-left:16px;position:relative;font-size:14.5px}
+.drawer ul li::before{content:"";position:absolute;left:0;top:.65em;width:5px;height:5px;
+  border-radius:50%;background:var(--line-2)}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:12px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:11px;align-items:start;font-size:15px;line-height:1.55}
+.steps li::before{content:counter(s);font-family:Newsreader,Georgia,serif;font-size:15px;font-weight:600;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 10%, var(--surface));
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.babynote{background:color-mix(in srgb, var(--fam-baby) 10%, var(--surface));
+  border:1px solid color-mix(in srgb, var(--fam-baby) 26%, var(--surface));
+  border-radius:8px;padding:11px 13px;font-size:13.5px;color:var(--ink-2);margin-top:16px}
+.babynote b{color:var(--fam-baby)}
+.reviewbox{background:color-mix(in srgb, var(--warn) 11%, var(--surface));
+  border:1px solid color-mix(in srgb, var(--warn) 30%, var(--surface));
+  border-radius:8px;padding:12px 13px;margin-top:16px;font-size:13.5px;color:var(--ink-2)}
+.reviewbox b{color:var(--warn)}
+.reviewbox ul{margin:7px 0 0;gap:3px}
+.reviewbox ul li{font-size:13px}
+textarea{width:100%;min-height:70px;resize:vertical;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--line-2);background:var(--paper)}
+textarea:focus{border-color:var(--accent);outline:none}
+.drawer-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.btn{padding:9px 15px;border-radius:8px;font-size:13.5px;font-weight:600;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-2)}
+.btn.warn{background:var(--warn);color:#fff}
+.btn.danger{background:none;color:var(--ink-3);border:1px solid var(--line-2);margin-left:auto}
+.btn.danger:hover{color:var(--accent);border-color:var(--accent)}
+.btn.danger[data-armed="1"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.saved-note{font-size:12px;color:var(--fam-nutrition);font-weight:600;opacity:0;transition:opacity .2s}
+.saved-note.on{opacity:1}
+footer{max-width:1180px;margin:0 auto;padding:20px 16px 40px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--line)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="24" height="24" rx="7" fill="var(--accent)"/>
+        <path d="M8 11.5h10v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 8 16.5v-5Z" fill="var(--accent-ink)"/>
+        <path d="M11 9c0-1 1.6-1 1.6-2.2M14.4 9c0-1 1.6-1 1.6-2.2" stroke="var(--accent-ink)" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1 id="brandtitle">Reels to Recipes</h1>
+        <span id="libcount"></span>
+      </div>
+    </div>
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/>
+        <path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <input id="q" type="search" aria-label="Search recipes">
+    </div>
+    <span id="sync" class="sync" aria-live="polite"></span>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="lang-en" aria-pressed="true">EN</button>
+      <button id="lang-zh" aria-pressed="false">中文</button>
+    </div>
+  </div>
+</header>
+
+<div class="rail-wrap"><div class="rail" id="rail"></div></div>
+
+<div class="wrap">
+  <main>
+    <h2 class="count" id="count"></h2>
+    <div class="views" id="views"></div>
+    <div class="selected-bar" id="selected"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <div class="eyebrow" id="tagsLabel">Tags</div>
+      <button class="linkbtn" id="reshuffle"></button>
+    </div>
+    <p class="panel-note" id="ranknote"></p>
+    <div class="mode" role="group" aria-label="Match mode">
+      <button id="mode-all" aria-pressed="true"></button>
+      <button id="mode-any" aria-pressed="false"></button>
+    </div>
+    <div id="families"></div>
+  </aside>
+</div>
+
+<footer id="foot"></footer>
+
+<script>
+/* ============================================================
+   1. DATA SEAM — the only place that knows where recipes live.
+   Swap the body of loadRecipes() for a fetch() to the Apps Script
+   web app and everything below is unchanged.
+   ============================================================ */
+const BOOT = <?!= bootstrap ?>;
+function loadRecipes(){ return BOOT.recipes; }
+
+const FAMILIES = [
+  {id:"ingredient", en:"Main ingredient", zh:"主料",     hue:"var(--fam-ingredient)"},
+  {id:"dish",       en:"Dish type",       zh:"菜式",     hue:"var(--fam-dish)"},
+  {id:"time",       en:"Time & effort",   zh:"时间与难度", hue:"var(--fam-time)"},
+  {id:"nutrition",  en:"Nutrition",       zh:"营养",     hue:"var(--fam-nutrition)"},
+  {id:"diet",       en:"Diet",            zh:"饮食",     hue:"var(--fam-diet)"},
+  {id:"baby",       en:"Baby stage",      zh:"宝宝阶段",  hue:"var(--fam-baby)"},
+  {id:"cuisine",    en:"Cuisine",         zh:"菜系",     hue:"var(--fam-cuisine)"}
+];
+
+/* Tag vocabulary: english key -> chinese label. Keeps filtering keyed on one
+   canonical string while the interface renders in either language. */
+const TAG_ZH = {
+  "chicken":"鸡肉","beef":"牛肉","salmon":"三文鱼","eggs":"鸡蛋","tofu":"豆腐",
+  "chickpeas":"鹰嘴豆","lentils":"小扁豆","peanut":"花生","rice":"米","noodles":"面条",
+  "oats":"燕麦","mushroom":"菌菇","tomato":"番茄","broccoli":"西兰花","greens":"青菜",
+  "sweet potato":"红薯","carrot":"胡萝卜",
+  "congee":"粥","stir-fry":"小炒","purée":"辅食泥","rice bowl":"盖饭","soup":"汤","bake":"烤盘菜",
+  "stew":"炖菜","breakfast":"早餐","steamed":"蒸菜","salad":"沙拉",
+  "≤15 min":"15分钟内","≤30 min":"30分钟内","one pot":"一锅出","no-cook sauce":"免煮酱汁",
+  "no-cook":"免开火","make-ahead":"可提前做",
+  "high-protein":"高蛋白","low-sodium":"低钠","calcium-rich":"补钙","iron-rich":"补铁",
+  "high-fiber":"高纤维","omega-3":"欧米伽3","low-carb":"低碳水",
+  "vegetarian":"素食","vegan":"纯素","gluten-free":"无麸质","dairy-free":"无乳制品",
+  "6m purée":"6个月 泥状","8m finger food":"8个月 手指食物","12m+":"12个月以上","no added salt":"无添加盐",
+  "Cantonese":"粤菜","Sichuan":"川菜","Yunnan":"云南菜","Japanese":"日式","Mediterranean":"地中海","American":"美式"
+};
+
+const UI = {
+  tags:      {en:"Tags", zh:"标签"},
+  reshuffle: {en:"Reshuffle", zh:"重新打乱"},
+  matchAll:  {en:"Match all", zh:"全部符合"},
+  matchAny:  {en:"Match any", zh:"任一符合"},
+  search:    {en:"Search title, ingredient, creator…", zh:"搜索菜名、食材、博主…"},
+  inBox:     {en:"recipes in the box", zh:"道菜"},
+  recipes:   {en:"recipes", zh:"道菜"},
+  of:        {en:"of", zh:"／共"},
+  all:       {en:"All", zh:"全部"},
+  favs:      {en:"Favorites", zh:"收藏"},
+  review:    {en:"To confirm", zh:"待确认"},
+  cooked:    {en:"Cooked", zh:"做过"},
+  clearAll:  {en:"Clear all", zh:"清除全部"},
+  allTags:   {en:"All tags", zh:"全部标签"},
+  del:       {en:"Delete", zh:"删除"},
+  delSure:   {en:"Delete for good?", zh:"确认删除？"},
+  importBtn: {en:"Import", zh:"导入"},
+  importing: {en:"Reading videos…", zh:"正在读取视频…"},
+  imported:  {en:"Imported {n}", zh:"已导入 {n} 条"},
+  inboxEmpty:{en:"Inbox is empty", zh:"收件夹是空的"},
+  min:       {en:"min", zh:"分钟"},
+  servings:  {en:"servings", zh:"人份"},
+  protein:   {en:"protein", zh:"蛋白质"},
+  ingredients:{en:"Ingredients", zh:"食材"},
+  method:    {en:"Method", zh:"做法"},
+  notes:     {en:"Tasting notes", zh:"试做笔记"},
+  notesPh:   {en:"Did it work? What would you change?", zh:"做得怎么样？下次改哪里？"},
+  save:      {en:"Save notes", zh:"保存笔记"},
+  saved:     {en:"Saved", zh:"已保存"},
+  markCooked:{en:"Mark as cooked", zh:"标记为做过"},
+  didCook:   {en:"✓ Cooked it", zh:"✓ 做过了"},
+  forSai:    {en:"For Sai", zh:"给 Sai"},
+  needsCheck:{en:"Check the ratios", zh:"核对配比"},
+  confirm:   {en:"Looks right — confirm", zh:"没问题，确认"},
+  confirmed: {en:"Confirmed", zh:"已确认"},
+  nothing:   {en:"Nothing matches", zh:"没有符合的菜"},
+  nothingBody:{en:"No recipe carries all of these tags at once.", zh:"没有一道菜同时带这些标签。"},
+  nothingHint:{en:"Try Match any, or drop the greyed-out tags.", zh:"试试「任一符合」，或去掉灰掉的标签。"},
+  noFavs:    {en:"Nothing saved here yet.", zh:"这里还没有收藏。"},
+  noReview:  {en:"Everything is confirmed.", zh:"全部已确认。"},
+  noCooked:  {en:"Nothing marked as cooked yet.", zh:"还没有标记做过的菜。"},
+  shuffled:  {en:"Shuffled for now. Tags you pick move to the front of their group and <b>stay there</b>.",
+              zh:"目前是随机排序。你点过的标签会排到本组最前面，并<b>一直留在那里</b>。"},
+  rankedBy:  {en:"Ranked by your use — <b>{n}</b> picks so far.", zh:"按你的使用频率排序 — 已点选 <b>{n}</b> 次。"},
+  foot:      {en:"Prototype with sample data. Source videos are deleted after extraction; the text below is the record. Tag ranking, favorites and notes live in this browser until the Drive backend is connected.",
+              zh:"原型，示例数据。源视频在提取后即删除，文字就是最终记录。标签排序、收藏和笔记暂存在本浏览器，接上 Drive 后端后迁移。"}
+};
+
+/* ============================================================
+   2. SAMPLE DATA — shape matches what the extractor will write
+   ============================================================ */
+/* ============================================================
+   3. STATE
+   ============================================================ */
+/* Recipe state lives in Drive (state.json) so favorites, notes, confirmations
+   and the tag ranking are the same on every phone that opens the link.
+   Language is the one per-person setting, so it stays in this browser. */
+const BLANK = {clicks:{}, seeds:{}, favs:{}, notes:{}, tried:{}, confirmed:{}};
+const store = Object.assign({}, BLANK, BOOT.state || {});
+Object.keys(BLANK).forEach(function(k){ if(!store[k]) store[k] = {}; });
+
+let flushTimer = null;
+function persist(){
+  setSync("saving");
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(function(){
+    google.script.run
+      .withSuccessHandler(function(){ setSync("saved"); })
+      .withFailureHandler(function(e){ setSync("error"); console.warn(e); })
+      .saveState({clicks:store.clicks, seeds:store.seeds, favs:store.favs,
+                  notes:store.notes, tried:store.tried, confirmed:store.confirmed});
+  }, 700);
+}
+function setSync(s){
+  const el = document.getElementById("sync");
+  if(!el) return;
+  el.dataset.state = s;
+  el.textContent = s === "saving" ? "…" : s === "error" ? "!" : "";
+}
+function langPref(){
+  try{ return localStorage.getItem("recipebox.lang") || "en"; }catch(e){ return "en"; }
+}
+function setLangPref(l){
+  try{ localStorage.setItem("recipebox.lang", l); }catch(e){}
+}
+
+const recipes = loadRecipes();
+const selected = new Set();
+let L = (langPref() === "zh") ? "zh" : "en";
+let matchMode = "all";
+let view = "all";
+let query = "";
+
+function t(o){ return !o ? "" : (o[L] || o.en); }
+function ui(k, vars){
+  let s = UI[k][L] || UI[k].en;
+  if(vars) for(const key in vars) s = s.replace("{"+key+"}", vars[key]);
+  return s;
+}
+function tagLabel(label){ return L === "zh" ? (TAG_ZH[label] || label) : label; }
+function famOf(id){ return FAMILIES.find(f => f.id === id); }
+function needsReview(r){ return !!r.needsReview; }   // baking ratios worth checking
+
+/* Tag index keyed "family:englishLabel" — filtering never depends on display language */
+const tagIndex = new Map();
+for(const r of recipes) for(const fam of FAMILIES) for(const lbl of (r.tags[fam.id] || [])){
+  const key = fam.id + ":" + lbl;
+  if(!tagIndex.has(key)) tagIndex.set(key, {key, family:fam.id, label:lbl, total:0});
+  tagIndex.get(key).total++;
+}
+/* Every tag gets a stable random rank the first time it is seen. Unclicked tags
+   keep that shuffled order; a click promotes the tag above them for good. */
+let seeded = false;
+for(const key of tagIndex.keys()){
+  if(store.seeds[key] === undefined){ store.seeds[key] = Math.random(); seeded = true; }
+}
+if(seeded) persist();
+function clicks(k){ return store.clicks[k] || 0; }
+function rank(a,b){
+  const d = clicks(b.key) - clicks(a.key);
+  return d !== 0 ? d : store.seeds[a.key] - store.seeds[b.key];
+}
+
+/* ============================================================
+   4. FILTERING
+   ============================================================ */
+function tagsOf(r){
+  const out = [];
+  for(const fam of FAMILIES) for(const lbl of (r.tags[fam.id] || [])) out.push(fam.id + ":" + lbl);
+  return out;
+}
+function haystack(r){
+  return [r.title.en, r.title.zh, r.creator,
+    ...r.ingredients.map(i => i.en + " " + i.zh),
+    ...tagsOf(r).map(k => k.split(":").slice(1).join(":")),
+    ...tagsOf(r).map(k => TAG_ZH[k.split(":").slice(1).join(":")] || "")
+  ].join(" ").toLowerCase();
+}
+function matchesQuery(r){ return !query || haystack(r).includes(query); }
+function matchesView(r){
+  if(view === "favs") return !!store.favs[r.id];
+  if(view === "cooked") return !!store.tried[r.id];
+  return true;
+}
+function matchesTagSet(r, set){
+  if(set.size === 0) return true;
+  const have = new Set(tagsOf(r));
+  if(matchMode === "all"){ for(const k of set) if(!have.has(k)) return false; return true; }
+  for(const k of set) if(have.has(k)) return true;
+  return false;
+}
+function results(){
+  return recipes.filter(r => matchesQuery(r) && matchesView(r) && matchesTagSet(r, selected));
+}
+function wouldYield(key){
+  const trial = new Set(selected); trial.add(key);
+  let n = 0;
+  for(const r of recipes) if(matchesQuery(r) && matchesView(r) && matchesTagSet(r, trial)) n++;
+  return n;
+}
+
+/* ============================================================
+   5. RENDER
+   ============================================================ */
+const el = {
+  families:document.getElementById("families"), grid:document.getElementById("grid"),
+  count:document.getElementById("count"), selected:document.getElementById("selected"),
+  libcount:document.getElementById("libcount"), ranknote:document.getElementById("ranknote"),
+  views:document.getElementById("views"), rail:document.getElementById("rail")
+};
+
+/* Phone rail: the twelve highest-ranked tags across every family, plus anything
+   currently selected, so the ranking is the first thing a thumb reaches. */
+function renderRail(){
+  const top = [...tagIndex.values()].sort(rank).slice(0,12);
+  for(const key of selected) if(!top.some(x => x.key === key)) top.unshift(tagIndex.get(key));
+  el.rail.innerHTML = "";
+  for(const tag of top){
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.type = "button";
+    b.style.setProperty("--fam", famOf(tag.family).hue);
+    const on = selected.has(tag.key);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    if(clicks(tag.key) > 0) b.dataset.hot = "1";
+    b.innerHTML = '<span>' + tagLabel(tag.label) + '</span><span class="n">' + tag.total + '</span>';
+    b.addEventListener("click", () => toggleTag(tag.key));
+    el.rail.appendChild(b);
+  }
+  const all = document.createElement("button");
+  all.className = "rail-all";
+  all.type = "button";
+  all.textContent = ui("allTags") + " ↓";
+  all.addEventListener("click", () => {
+    document.getElementById("panel").scrollIntoView({behavior:"smooth", block:"start"});
+  });
+  el.rail.appendChild(all);
+}
+
+function renderChrome(){
+  document.body.dataset.lang = L;
+  document.getElementById("q").placeholder = ui("search");
+  document.getElementById("tagsLabel").textContent = ui("tags");
+  document.getElementById("reshuffle").textContent = ui("reshuffle");
+  document.getElementById("mode-all").textContent = ui("matchAll");
+  document.getElementById("mode-any").textContent = ui("matchAny");
+  document.getElementById("lang-en").setAttribute("aria-pressed", L === "en" ? "true" : "false");
+  document.getElementById("lang-zh").setAttribute("aria-pressed", L === "zh" ? "true" : "false");
+  document.getElementById("foot").innerHTML = ui("foot");
+  el.libcount.textContent = L === "zh"
+    ? recipes.length + " " + ui("inBox")
+    : recipes.length + " " + ui("inBox");
+}
+
+function renderViews(){
+  const defs = [
+    {id:"all",    label:ui("all")},
+    {id:"favs",   label:"♡ " + ui("favs")},
+    {id:"cooked", label:ui("cooked")}
+  ];
+  el.views.innerHTML = "";
+  for(const d of defs){
+    const b = document.createElement("button");
+    b.className = "view";
+    b.type = "button";
+    b.setAttribute("aria-pressed", view === d.id ? "true" : "false");
+    b.innerHTML = d.label + (d.badge ? ' <span class="badge">' + d.badge + '</span>' : '');
+    b.addEventListener("click", () => { view = d.id; render(); });
+    el.views.appendChild(b);
+  }
+
+  /* Pulls whatever is sitting in the Drive inbox. The 15-minute trigger does
+     this on its own; the button is for when you have just dropped a video in
+     and do not want to wait. */
+  const imp = document.createElement("button");
+  imp.className = "view import";
+  imp.type = "button";
+  imp.innerHTML = ui("importBtn") +
+    (BOOT.pending ? ' <span class="badge">' + BOOT.pending + '</span>' : '');
+  imp.addEventListener("click", () => {
+    imp.disabled = true;
+    imp.textContent = ui("importing");
+    google.script.run
+      .withSuccessHandler(res => {
+        if(res.imported > 0){ location.reload(); }
+        else { imp.textContent = ui("inboxEmpty"); setTimeout(() => render(), 2200); }
+      })
+      .withFailureHandler(e => { imp.disabled = false; imp.textContent = "!"; console.warn(e); })
+      .importNow();
+  });
+  el.views.appendChild(imp);
+}
+
+function renderPanel(){
+  const total = Object.values(store.clicks).reduce((a,b) => a+b, 0);
+  el.ranknote.innerHTML = total === 0 ? ui("shuffled") : ui("rankedBy", {n: total});
+  el.families.innerHTML = "";
+  for(const fam of FAMILIES){
+    const tags = [...tagIndex.values()].filter(x => x.family === fam.id).sort(rank);
+    if(!tags.length) continue;
+    const sec = document.createElement("section");
+    sec.className = "family";
+    sec.style.setProperty("--fam", fam.hue);
+    const h = document.createElement("div");
+    h.className = "eyebrow";
+    h.textContent = fam[L] || fam.en;
+    sec.appendChild(h);
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    for(const tag of tags){
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      const on = selected.has(tag.key);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      if(clicks(tag.key) > 0) b.dataset.hot = "1";
+      if(!on && wouldYield(tag.key) === 0) b.classList.add("is-empty");
+      b.innerHTML = '<span>' + tagLabel(tag.label) + '</span><span class="n">' + tag.total + '</span>';
+      b.addEventListener("click", () => toggleTag(tag.key));
+      chips.appendChild(b);
+    }
+    sec.appendChild(chips);
+    el.families.appendChild(sec);
+  }
+}
+
+function renderSelected(){
+  el.selected.innerHTML = "";
+  if(selected.size === 0) return;
+  for(const key of selected){
+    const famId = key.split(":")[0];
+    const label = key.split(":").slice(1).join(":");
+    const s = document.createElement("span");
+    s.className = "sel";
+    s.style.setProperty("--fam", famOf(famId).hue);
+    s.innerHTML = '<span>' + tagLabel(label) + '</span>';
+    const x = document.createElement("button");
+    x.type = "button";
+    x.setAttribute("aria-label", "Remove " + label);
+    x.textContent = "×";
+    x.addEventListener("click", () => toggleTag(key));
+    s.appendChild(x);
+    el.selected.appendChild(s);
+  }
+  const clear = document.createElement("button");
+  clear.className = "linkbtn";
+  clear.style.marginLeft = "4px";
+  clear.textContent = ui("clearAll");
+  clear.addEventListener("click", () => { selected.clear(); render(); });
+  el.selected.appendChild(clear);
+}
+
+function renderGrid(){
+  const rs = results();
+  const filtered = selected.size > 0 || query || view !== "all";
+  el.count.innerHTML = filtered
+    ? '<em>' + rs.length + '</em> ' + ui("of") + ' ' + recipes.length
+    : '<em>' + rs.length + '</em> ' + ui("recipes");
+
+  el.grid.innerHTML = "";
+  if(rs.length === 0){
+    const e = document.createElement("div");
+    e.className = "empty";
+    let body = ui("nothingBody"), hint = ui("nothingHint");
+    if(selected.size === 0 && !query){
+      hint = "";
+      body = view === "favs" ? ui("noFavs") : ui("noCooked");
+    }
+    e.innerHTML = '<div class="eyebrow" style="margin-bottom:8px">' + ui("nothing") + '</div>' +
+      '<p>' + body + '</p>' +
+      (hint ? '<p style="font-size:13px;color:var(--ink-3)">' + hint + '</p>' : '');
+    el.grid.appendChild(e);
+    return;
+  }
+
+  for(const r of rs){
+    const primary = r.tags.dish[0] ? "dish" : "ingredient";
+    const card = document.createElement("div");
+    card.className = "card" + (needsReview(r) ? " review" : "");
+    card.style.setProperty("--fam", needsReview(r) ? "var(--warn)" : famOf(primary).hue);
+
+    /* One label can sit in two families (noodles is both an ingredient and a
+       dish) — show it once on the card. */
+    const seen = new Set();
+    const flat = tagsOf(r).filter(k => {
+      const lbl = k.split(":").slice(1).join(":");
+      if(seen.has(lbl)) return false;
+      seen.add(lbl); return true;
+    });
+    const shown = flat.slice(0,4);
+    const rest = flat.length - shown.length;
+
+    const open = document.createElement("button");
+    open.className = "open";
+    open.type = "button";
+    open.innerHTML =
+      (needsReview(r)
+        ? '<span class="flag">' + ui("needsCheck") + '</span>'
+        : '<span class="eyebrow" style="color:var(--fam)">' +
+            tagLabel(r.tags.cuisine[0] || r.tags.dish[0] || "") + '</span>') +
+      '<h3>' + t(r.title) + '</h3>' +
+      '<div class="meta"><b>' + r.minutes + ' ' + ui("min") + '</b> · ' +
+        r.servings + ' ' + ui("servings") + ' · ' + r.protein + 'g ' + ui("protein") +
+        '<br>' + r.creator + '</div>' +
+      '<div class="card-tags">' +
+        shown.map(k => {
+          const f = famOf(k.split(":")[0]);
+          return '<span class="tag-mini" style="--fam:' + f.hue + '">' +
+            tagLabel(k.split(":").slice(1).join(":")) + '</span>';
+        }).join("") +
+        (rest > 0 ? '<span class="tag-mini more">+' + rest + '</span>' : '') +
+      '</div>' +
+      (store.tried[r.id] ? '<span class="flag done">' + ui("didCook") + '</span>' : '');
+    open.addEventListener("click", () => openRecipe(r.id));
+    card.appendChild(open);
+
+    const h = document.createElement("button");
+    h.className = "heart";
+    h.type = "button";
+    h.setAttribute("aria-pressed", store.favs[r.id] ? "true" : "false");
+    h.setAttribute("aria-label", "Favorite " + r.title.en);
+    h.innerHTML = '<svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 17S3 12.6 3 7.9A3.9 3.9 0 0 1 10 5.4 3.9 3.9 0 0 1 17 7.9C17 12.6 10 17 10 17Z" stroke-linejoin="round"/></svg>';
+    h.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      store.favs[r.id] = !store.favs[r.id];
+      persist(); render();
+    });
+    card.appendChild(h);
+    el.grid.appendChild(card);
+  }
+}
+
+function render(){ renderChrome(); renderRail(); renderViews(); renderPanel(); renderSelected(); renderGrid(); }
+
+/* ============================================================
+   6. INTERACTION
+   ============================================================ */
+function toggleTag(key){
+  if(selected.has(key)){
+    selected.delete(key);
+  }else{
+    selected.add(key);
+    store.clicks[key] = clicks(key) + 1;   // only a selection counts as a vote
+    persist();
+  }
+  render();
+}
+document.getElementById("q").addEventListener("input", e => {
+  query = e.target.value.trim().toLowerCase(); render();
+});
+document.getElementById("mode-all").addEventListener("click", () => setMode("all"));
+document.getElementById("mode-any").addEventListener("click", () => setMode("any"));
+function setMode(m){
+  matchMode = m;
+  document.getElementById("mode-all").setAttribute("aria-pressed", m === "all" ? "true":"false");
+  document.getElementById("mode-any").setAttribute("aria-pressed", m === "any" ? "true":"false");
+  render();
+}
+document.getElementById("lang-en").addEventListener("click", () => setLang("en"));
+document.getElementById("lang-zh").addEventListener("click", () => setLang("zh"));
+function setLang(l){
+  L = l; setLangPref(l);
+  render();
+  const open = document.querySelector(".scrim");
+  if(open){ const id = open.dataset.recipe; closeRecipe(); openRecipe(id); }
+}
+document.getElementById("reshuffle").addEventListener("click", () => {
+  for(const key of tagIndex.keys()) store.seeds[key] = Math.random();
+  persist(); render();
+});
+
+/* ---------- recipe view ---------- */
+function openRecipe(id){
+  const r = recipes.find(x => x.id === id);
+  if(!r) return;
+  const scrim = document.createElement("div");
+  scrim.className = "scrim";
+  scrim.dataset.recipe = id;
+  scrim.addEventListener("click", e => { if(e.target === scrim) closeRecipe(); });
+
+  const d = document.createElement("div");
+  d.className = "drawer";
+  d.setAttribute("role","dialog");
+  d.setAttribute("aria-modal","true");
+  d.setAttribute("aria-label", r.title.en);
+
+  const chips = FAMILIES.map(f => (r.tags[f.id] || []).map(lbl =>
+    '<span class="tag-mini" style="--fam:' + f.hue + '">' + tagLabel(lbl) + '</span>').join("")).join("");
+
+  d.innerHTML =
+    '<div class="drawer-top"><div>' +
+      '<div class="eyebrow">' + tagLabel(r.tags.cuisine[0] || "") + ' · ' + r.creator + '</div>' +
+      '<h2>' + t(r.title) + '</h2>' +
+      '<div class="meta" style="font-size:12.5px;color:var(--ink-3);margin-top:4px">' +
+        r.minutes + ' ' + ui("min") + ' · ' + r.servings + ' ' + ui("servings") + '</div>' +
+    '</div><button class="close" aria-label="Close">×</button></div>' +
+    '<div class="card-tags" style="margin-top:12px">' + chips + '</div>' +
+    (needsReview(r) ? '<div class="reviewbox"><b>' + ui("needsCheck") + '</b><ul>' +
+        (r.reviewFlags[L] || r.reviewFlags.en).map(f => '<li>' + f + '</li>').join("") +
+      '</ul></div>' : '') +
+    '<h4>' + ui("ingredients") + '</h4>' +
+    '<ul>' + r.ingredients.map(i => '<li>' + t(i) + '</li>').join("") + '</ul>' +
+    '<h4>' + ui("method") + '</h4>' +
+    '<ol class="steps">' + r.steps.map(s => '<li>' + t(s) + '</li>').join("") + '</ol>' +
+    (r.babyNote ? '<div class="babynote"><b>' + ui("forSai") + '</b> — ' + t(r.babyNote) + '</div>' : '') +
+    '<h4>' + ui("notes") + '</h4>' +
+    '<textarea id="notes"></textarea>' +
+    '<div class="drawer-actions">' +
+      '<button class="btn" id="savenote">' + ui("save") + '</button>' +
+      '<button class="btn ghost" id="triedbtn"></button>' +
+      '<span class="saved-note" id="savedmsg">' + ui("saved") + '</span>' +
+      '<button class="btn danger" id="delbtn">' + ui("del") + '</button>' +
+    '</div>';
+
+  scrim.appendChild(d);
+  document.body.appendChild(scrim);
+  document.body.style.overflow = "hidden";
+
+  const notes = d.querySelector("#notes");
+  notes.placeholder = ui("notesPh");
+  notes.value = store.notes[id] || "";
+
+  const triedBtn = d.querySelector("#triedbtn");
+  const paint = () => { triedBtn.textContent = store.tried[id] ? ui("didCook") : ui("markCooked"); };
+  paint();
+  triedBtn.addEventListener("click", () => { store.tried[id] = !store.tried[id]; persist(); paint(); });
+
+  d.querySelector("#savenote").addEventListener("click", () => {
+    store.notes[id] = notes.value;
+    if(notes.value.trim()) store.tried[id] = true;
+    persist(); paint();
+    const m = d.querySelector("#savedmsg");
+    m.classList.add("on");
+    setTimeout(() => m.classList.remove("on"), 1400);
+  });
+
+  /* Two taps to delete: the first arms the button, the second commits. The
+     recipe file is trashed; the source video in /done is left alone. */
+  const del = d.querySelector("#delbtn");
+  del.addEventListener("click", () => {
+    if(del.dataset.armed !== "1"){
+      del.dataset.armed = "1";
+      del.textContent = ui("delSure");
+      setTimeout(() => {
+        if(del.dataset.armed === "1"){ del.dataset.armed = "0"; del.textContent = ui("del"); }
+      }, 4000);
+      return;
+    }
+    del.disabled = true;
+    google.script.run
+      .withSuccessHandler(() => location.reload())
+      .withFailureHandler(e => { del.disabled = false; del.textContent = "!"; console.warn(e); })
+      .deleteRecipe(id);
+  });
+
+  d.querySelector(".close").addEventListener("click", closeRecipe);
+  d.querySelector(".close").focus();
+  document.addEventListener("keydown", escClose);
+}
+function escClose(e){ if(e.key === "Escape") closeRecipe(); }
+function closeRecipe(){
+  const s = document.querySelector(".scrim");
+  if(s) s.remove();
+  document.body.style.overflow = "";
+  document.removeEventListener("keydown", escClose);
+  render();
+}
+
+render();
+</script>
