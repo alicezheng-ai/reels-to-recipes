@@ -128,6 +128,53 @@ body[data-lang="zh"] .brand h1{font-family:"Noto Sans SC",sans-serif;font-weight
 .chip.is-empty{opacity:.38}
 
 main{padding-top:18px;min-width:0}
+
+/* mode switcher */
+.modes{display:flex;gap:4px;padding:10px 0 2px;flex-wrap:wrap}
+.mode-btn{padding:7px 14px;border-radius:8px;font-size:13.5px;font-weight:600;
+  color:var(--ink-2);border:1px solid transparent;display:inline-flex;align-items:center;gap:7px}
+.mode-btn:hover{color:var(--ink)}
+.mode-btn[aria-pressed="true"]{background:var(--surface);border-color:var(--line-2);color:var(--ink)}
+.mode-btn .badge{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;
+  background:var(--accent);color:var(--accent-ink);font-variant-numeric:tabular-nums}
+
+/* pantry */
+.pantry{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 15px;margin-bottom:18px}
+.pantry textarea{min-height:56px;margin-bottom:8px}
+.pantry .hint{font-size:12px;color:var(--ink-3);line-height:1.45;margin:0 0 10px}
+.suggest{display:flex;flex-wrap:wrap;gap:5px}
+.suggest .chip{font-size:12.5px;padding:4px 10px}
+
+/* coverage */
+.cover{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase}
+.cover.full{color:var(--fam-nutrition)}
+.cover.near{color:var(--fam-time)}
+.cover.far{color:var(--ink-3)}
+.cover .miss{font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink-3)}
+
+/* basket button on cards */
+.bask{position:absolute;top:44px;right:11px;width:28px;height:28px;border-radius:50%;
+  display:grid;place-items:center;color:var(--ink-3);font-size:17px;line-height:1;font-weight:600}
+.bask:hover{background:var(--surface-2);color:var(--accent)}
+.bask[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+
+/* grocery list */
+.aisle{margin-bottom:22px}
+.aisle > .eyebrow{margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.listrow{display:grid;grid-template-columns:22px 1fr auto;gap:11px;align-items:baseline;
+  padding:8px 0;border-bottom:1px solid var(--line)}
+.listrow:last-child{border-bottom:none}
+.listrow .box{width:18px;height:18px;border:1.5px solid var(--line-2);border-radius:5px;
+  display:grid;place-items:center;font-size:12px;color:var(--accent);align-self:center}
+.listrow[data-checked="1"]{opacity:.45}
+.listrow[data-checked="1"] .name{text-decoration:line-through}
+.listrow .box[data-on="1"]{border-color:var(--accent)}
+.name{font-weight:600;font-size:14.5px}
+.name small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.amt{font-size:13.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.listtools{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
 .count{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:clamp(27px,6vw,38px);
   line-height:1;margin:0 0 12px;letter-spacing:-.02em}
 body[data-lang="zh"] .count{font-family:"Noto Sans SC",sans-serif;font-weight:700;letter-spacing:0}
@@ -261,10 +308,30 @@ footer{max-width:1180px;margin:0 auto;padding:20px 16px 40px;font-size:12px;colo
 
 <div class="wrap">
   <main>
-    <h2 class="count" id="count"></h2>
-    <div class="views" id="views"></div>
-    <div class="selected-bar" id="selected"></div>
-    <div class="grid" id="grid"></div>
+    <nav class="modes" id="modes"></nav>
+
+    <section id="sec-library">
+      <h2 class="count" id="count"></h2>
+      <div class="views" id="views"></div>
+      <div class="selected-bar" id="selected"></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="sec-cook" hidden>
+      <h2 class="count" id="cookcount"></h2>
+      <div class="pantry">
+        <p class="hint" id="pantryhint"></p>
+        <textarea id="pantry"></textarea>
+        <div class="suggest" id="suggest"></div>
+      </div>
+      <div class="grid" id="cookgrid"></div>
+    </section>
+
+    <section id="sec-list" hidden>
+      <h2 class="count" id="listcount"></h2>
+      <div class="listtools" id="listtools"></div>
+      <div id="listbody"></div>
+    </section>
   </main>
 
   <aside class="panel" id="panel">
@@ -336,6 +403,28 @@ const UI = {
   clearAll:  {en:"Clear all", zh:"清除全部"},
   allTags:   {en:"All tags", zh:"全部标签"},
   del:       {en:"Delete", zh:"删除"},
+  mLibrary:  {en:"Library", zh:"菜谱"},
+  mCook:     {en:"What can I make", zh:"能做什么"},
+  mList:     {en:"List", zh:"购物单"},
+  pantryPh:  {en:"chicken, spinach, eggs, tofu…", zh:"鸡肉、菠菜、鸡蛋、豆腐…"},
+  pantryHint:{en:"What's in your fridge? Comma or line separated. Salt, oil, sugar and water are assumed.",
+              zh:"冰箱里有什么？逗号或换行分隔。盐、油、糖、水默认都有。"},
+  haveAll:   {en:"have everything", zh:"食材齐全"},
+  ready:     {en:"ready to cook", zh:"食材齐全"},
+  items:     {en:"items", zh:"样食材"},
+  missing:   {en:"missing", zh:"还缺"},
+  ofN:       {en:"of", zh:"／"},
+  addList:   {en:"Add to list", zh:"加入购物单"},
+  inList:    {en:"In list", zh:"已加入"},
+  listEmpty: {en:"Nothing in the list yet. Add recipes from the Library.",
+              zh:"购物单是空的。先从菜谱里添加。"},
+  fromN:     {en:"from", zh:"来自"},
+  clearList: {en:"Clear list", zh:"清空"},
+  copyList:  {en:"Copy", zh:"复制"},
+  copied:    {en:"Copied", zh:"已复制"},
+  pantryEmpty:{en:"Type what you have and recipes will sort themselves by what's missing.",
+               zh:"输入手边的食材，菜谱会按缺少的东西排序。"},
+  pasteHere: {en:"Paste text or a YouTube link", zh:"粘贴文字或 YouTube 链接"},
   delSure:   {en:"Delete for good?", zh:"确认删除？"},
   importBtn: {en:"Import", zh:"导入"},
   importing: {en:"Reading videos…", zh:"正在读取视频…"},
@@ -378,9 +467,13 @@ const UI = {
 /* Recipe state lives in Drive (state.json) so favorites, notes, confirmations
    and the tag ranking are the same on every phone that opens the link.
    Language is the one per-person setting, so it stays in this browser. */
-const BLANK = {clicks:{}, seeds:{}, favs:{}, notes:{}, tried:{}, confirmed:{}};
+const BLANK = {clicks:{}, seeds:{}, favs:{}, notes:{}, tried:{}, confirmed:{},
+               basket:{}, checked:{}, pantryText:""};
 const store = Object.assign({}, BLANK, BOOT.state || {});
-Object.keys(BLANK).forEach(function(k){ if(!store[k]) store[k] = {}; });
+Object.keys(BLANK).forEach(function(k){
+  if(typeof BLANK[k] === "object" && !store[k]) store[k] = {};
+});
+if(typeof store.pantryText !== "string") store.pantryText = "";
 
 let flushTimer = null;
 function persist(){
@@ -391,7 +484,9 @@ function persist(){
       .withSuccessHandler(function(){ setSync("saved"); })
       .withFailureHandler(function(e){ setSync("error"); console.warn(e); })
       .saveState({clicks:store.clicks, seeds:store.seeds, favs:store.favs,
-                  notes:store.notes, tried:store.tried, confirmed:store.confirmed});
+                  notes:store.notes, tried:store.tried, confirmed:store.confirmed,
+                  basket:store.basket, checked:store.checked,
+                  pantryText:store.pantryText || ""});
   }, 700);
 }
 function setSync(s){
@@ -411,6 +506,7 @@ const recipes = loadRecipes();
 const selected = new Set();
 let L = (langPref() === "zh") ? "zh" : "en";
 let matchMode = "all";
+let mode = "library";
 let view = "all";
 let query = "";
 
@@ -489,8 +585,114 @@ const el = {
   families:document.getElementById("families"), grid:document.getElementById("grid"),
   count:document.getElementById("count"), selected:document.getElementById("selected"),
   libcount:document.getElementById("libcount"), ranknote:document.getElementById("ranknote"),
-  views:document.getElementById("views"), rail:document.getElementById("rail")
+  views:document.getElementById("views"), rail:document.getElementById("rail"),
+  modes:document.getElementById("modes"),
+  cookgrid:document.getElementById("cookgrid"), cookcount:document.getElementById("cookcount"),
+  pantry:document.getElementById("pantry"), suggest:document.getElementById("suggest"),
+  pantryhint:document.getElementById("pantryhint"),
+  listbody:document.getElementById("listbody"), listcount:document.getElementById("listcount"),
+  listtools:document.getElementById("listtools"),
+  secLibrary:document.getElementById("sec-library"),
+  secCook:document.getElementById("sec-cook"),
+  secList:document.getElementById("sec-list"),
+  panel:document.getElementById("panel"), railwrap:document.querySelector(".rail-wrap")
 };
+
+/* ============================================================
+   INGREDIENTS — the shared vocabulary behind both grocery views
+   ============================================================ */
+
+/* Assumed present in any kitchen; counting them as "missing" would make every
+   recipe look out of reach. */
+const STAPLES = ["salt","pepper","water","oil","cooking oil","vegetable oil",
+                 "olive oil","sugar","black pepper"];
+
+function itemsOf(r){
+  const out = [];
+  const seen = new Set();
+  for(const i of (r.ingredients || [])){
+    const key = (i.item || "").trim();
+    if(!key || seen.has(key) || STAPLES.indexOf(key) !== -1) continue;
+    seen.add(key);
+    out.push(i);
+  }
+  /* Records extracted before ingredients carried an item field fall back to
+     their coarse tags, so old recipes still take part. */
+  if(!out.length){
+    for(const t of (r.tags.ingredient || [])){
+      if(seen.has(t)) continue;
+      seen.add(t);
+      out.push({item:t, en:t, zh:tagLabel(t), aisle:"other", qty:null, unit:"", estimated:false});
+    }
+  }
+  return out;
+}
+
+function parsePantry(text){
+  return (text || "").split(/[,，\n;；]/).map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+
+/* Loose both ways, so "chicken" in the fridge covers "chicken thigh" in a
+   recipe and vice versa. */
+function covers(have, item){
+  return have.some(h => item === h || item.includes(h) || h.includes(item));
+}
+
+function coverage(r, have){
+  const items = itemsOf(r);
+  const missing = items.filter(i => !covers(have, i.item));
+  return {total: items.length, missing: missing, got: items.length - missing.length};
+}
+
+/* Aggregate the basket into one line per ingredient, summed where units agree. */
+function buildList(){
+  const chosen = recipes.filter(r => store.basket[r.id]);
+  const rows = new Map();
+  for(const r of chosen){
+    for(const i of (r.ingredients || [])){
+      const key = (i.item || i.en || "").trim().toLowerCase();
+      if(!key) continue;
+      if(!rows.has(key)){
+        rows.set(key, {item:key, aisle:i.aisle || "other", amounts:new Map(),
+                       estimated:false, from:[], plain:[]});
+      }
+      const row = rows.get(key);
+      if(row.from.indexOf(t(r.title)) === -1) row.from.push(t(r.title));
+      if(i.estimated) row.estimated = true;
+      if(typeof i.qty === "number" && i.qty){
+        const u = i.unit || "";
+        row.amounts.set(u, (row.amounts.get(u) || 0) + i.qty);
+      }else{
+        row.plain.push(L === "zh" ? i.zh : i.en);
+      }
+    }
+  }
+  const byAisle = new Map();
+  for(const row of rows.values()){
+    if(!byAisle.has(row.aisle)) byAisle.set(row.aisle, []);
+    byAisle.get(row.aisle).push(row);
+  }
+  const order = (BOOT.aisles || ["produce","protein","dairy & eggs","grains & noodles",
+                                 "pantry","seasoning","frozen","other"]);
+  const out = [];
+  for(const aisle of order){
+    if(!byAisle.has(aisle)) continue;
+    const items = byAisle.get(aisle).sort((a,b) => a.item.localeCompare(b.item));
+    out.push({aisle, items});
+  }
+  return {groups: out, recipes: chosen};
+}
+
+function amountText(row){
+  const bits = [];
+  for(const [unit, qty] of row.amounts){
+    const n = Math.round(qty * 100) / 100;
+    bits.push(unit ? n + " " + unit : String(n));
+  }
+  if(!bits.length && row.plain.length) return row.plain[0];
+  if(!bits.length) return "";
+  return (row.estimated ? "~" : "") + bits.join(" + ");
+}
 
 /* Phone rail: the twelve highest-ranked tags across every family, plus anything
    currently selected, so the ranking is the first thing a thumb reaches. */
@@ -633,6 +835,129 @@ function renderSelected(){
   el.selected.appendChild(clear);
 }
 
+/* One card shape, used by the library and by what-can-I-make. */
+function cardEl(r, cover){
+  const primary = r.tags.dish[0] ? "dish" : "ingredient";
+  const card = document.createElement("div");
+  card.className = "card" + (needsReview(r) ? " review" : "");
+  card.style.setProperty("--fam", needsReview(r) ? "var(--warn)" : famOf(primary).hue);
+
+  /* One label can sit in two families (noodles is both an ingredient and a
+     dish) — show it once on the card. */
+  const seen = new Set();
+  const flat = tagsOf(r).filter(k => {
+    const lbl = k.split(":").slice(1).join(":");
+    if(seen.has(lbl)) return false;
+    seen.add(lbl); return true;
+  });
+  const shown = flat.slice(0,4);
+  const rest = flat.length - shown.length;
+
+  let eyebrow;
+  if(cover){
+    const cls = cover.missing.length === 0 ? "full" : cover.missing.length <= 2 ? "near" : "far";
+    eyebrow = '<span class="cover ' + cls + '">' +
+      (cover.missing.length === 0
+        ? "✓ " + ui("haveAll")
+        : cover.got + " " + ui("ofN") + " " + cover.total +
+          ' <span class="miss">· ' + ui("missing") + " " +
+          cover.missing.slice(0,3).map(i => L === "zh" ? (i.zh || i.item) : i.item).join(", ") +
+          (cover.missing.length > 3 ? " +" + (cover.missing.length - 3) : "") + '</span>') +
+      '</span>';
+  }else if(needsReview(r)){
+    eyebrow = '<span class="flag">' + ui("needsCheck") + '</span>';
+  }else{
+    eyebrow = '<span class="eyebrow" style="color:var(--fam)">' +
+      tagLabel(r.tags.cuisine[0] || r.tags.dish[0] || "") + '</span>';
+  }
+
+  const open = document.createElement("button");
+  open.className = "open";
+  open.type = "button";
+  open.innerHTML =
+    eyebrow +
+    '<h3>' + t(r.title) + '</h3>' +
+    '<div class="meta"><b>' + r.minutes + ' ' + ui("min") + '</b> · ' +
+      r.servings + ' ' + ui("servings") + ' · ' + r.protein + 'g ' + ui("protein") +
+      '<br>' + r.creator + '</div>' +
+    '<div class="card-tags">' +
+      shown.map(k => {
+        const f = famOf(k.split(":")[0]);
+        return '<span class="tag-mini" style="--fam:' + f.hue + '">' +
+          tagLabel(k.split(":").slice(1).join(":")) + '</span>';
+      }).join("") +
+      (rest > 0 ? '<span class="tag-mini more">+' + rest + '</span>' : '') +
+    '</div>' +
+    (store.tried[r.id] ? '<span class="flag done">' + ui("didCook") + '</span>' : '');
+  open.addEventListener("click", () => openRecipe(r.id));
+  card.appendChild(open);
+
+  const h = document.createElement("button");
+  h.className = "heart";
+  h.type = "button";
+  h.setAttribute("aria-pressed", store.favs[r.id] ? "true" : "false");
+  h.setAttribute("aria-label", "Favorite " + r.title.en);
+  h.innerHTML = '<svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 17S3 12.6 3 7.9A3.9 3.9 0 0 1 10 5.4 3.9 3.9 0 0 1 17 7.9C17 12.6 10 17 10 17Z" stroke-linejoin="round"/></svg>';
+  h.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    store.favs[r.id] = !store.favs[r.id];
+    persist(); render();
+  });
+  card.appendChild(h);
+
+  const b = document.createElement("button");
+  b.className = "bask";
+  b.type = "button";
+  b.setAttribute("aria-pressed", store.basket[r.id] ? "true" : "false");
+  b.setAttribute("aria-label", (store.basket[r.id] ? ui("inList") : ui("addList")) + ": " + r.title.en);
+  b.title = store.basket[r.id] ? ui("inList") : ui("addList");
+  b.textContent = store.basket[r.id] ? "✓" : "+";
+  b.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if(store.basket[r.id]) delete store.basket[r.id]; else store.basket[r.id] = true;
+    persist(); render();
+  });
+  card.appendChild(b);
+
+  return card;
+}
+
+function emptyEl(title, body, hint){
+  const e = document.createElement("div");
+  e.className = "empty";
+  e.innerHTML = '<div class="eyebrow" style="margin-bottom:8px">' + title + '</div>' +
+    '<p>' + body + '</p>' +
+    (hint ? '<p style="font-size:13px;color:var(--ink-3)">' + hint + '</p>' : '');
+  return e;
+}
+
+function renderModes(){
+  const n = Object.keys(store.basket).filter(k => store.basket[k]).length;
+  const defs = [
+    {id:"library", label:ui("mLibrary")},
+    {id:"cook",    label:ui("mCook")},
+    {id:"list",    label:ui("mList"), badge:n}
+  ];
+  el.modes.innerHTML = "";
+  for(const d of defs){
+    const b = document.createElement("button");
+    b.className = "mode-btn";
+    b.type = "button";
+    b.setAttribute("aria-pressed", mode === d.id ? "true" : "false");
+    b.innerHTML = d.label + (d.badge ? ' <span class="badge">' + d.badge + '</span>' : '');
+    b.addEventListener("click", () => { mode = d.id; render(); });
+    el.modes.appendChild(b);
+  }
+  el.secLibrary.hidden = mode !== "library";
+  el.secCook.hidden    = mode !== "cook";
+  el.secList.hidden    = mode !== "list";
+  /* Tags only steer the library, so they leave with it. */
+  el.panel.hidden = mode !== "library";
+  if(el.railwrap) el.railwrap.hidden = mode !== "library";
+  const search = document.querySelector(".search");
+  if(search) search.hidden = mode !== "library";
+}
+
 function renderGrid(){
   const rs = results();
   const filtered = selected.size > 0 || query || view !== "all";
@@ -642,78 +967,171 @@ function renderGrid(){
 
   el.grid.innerHTML = "";
   if(rs.length === 0){
-    const e = document.createElement("div");
-    e.className = "empty";
     let body = ui("nothingBody"), hint = ui("nothingHint");
     if(selected.size === 0 && !query){
       hint = "";
       body = view === "favs" ? ui("noFavs") : ui("noCooked");
     }
-    e.innerHTML = '<div class="eyebrow" style="margin-bottom:8px">' + ui("nothing") + '</div>' +
-      '<p>' + body + '</p>' +
-      (hint ? '<p style="font-size:13px;color:var(--ink-3)">' + hint + '</p>' : '');
-    el.grid.appendChild(e);
+    el.grid.appendChild(emptyEl(ui("nothing"), body, hint));
+    return;
+  }
+  for(const r of rs) el.grid.appendChild(cardEl(r, null));
+}
+
+/* What can I make — the library ranked by what you are missing, not filtered
+   down to perfect matches. A recipe you can almost make is the useful answer. */
+function renderCook(){
+  el.pantryhint.textContent = ui("pantryHint");
+  if(document.activeElement !== el.pantry) el.pantry.value = store.pantryText || "";
+  el.pantry.placeholder = ui("pantryPh");
+
+  /* Quick-add chips: the items that appear most often across the library. */
+  const freq = new Map();
+  for(const r of recipes) for(const i of itemsOf(r)){
+    freq.set(i.item, (freq.get(i.item) || 0) + 1);
+  }
+  const have = parsePantry(store.pantryText);
+  const top = [...freq.entries()].sort((a,b) => b[1] - a[1]).slice(0,14);
+  el.suggest.innerHTML = "";
+  for(const [item, n] of top){
+    const on = covers(have, item);
+    const c = document.createElement("button");
+    c.className = "chip";
+    c.type = "button";
+    c.style.setProperty("--fam", "var(--fam-ingredient)");
+    c.setAttribute("aria-pressed", on ? "true" : "false");
+    c.innerHTML = '<span>' + (L === "zh" ? tagLabel(item) : item) + '</span><span class="n">' + n + '</span>';
+    c.addEventListener("click", () => {
+      const list = parsePantry(store.pantryText);
+      const i = list.indexOf(item);
+      if(i === -1) list.push(item); else list.splice(i, 1);
+      store.pantryText = list.join(", ");
+      persist(); render();
+    });
+    el.suggest.appendChild(c);
+  }
+
+  el.cookgrid.innerHTML = "";
+  if(!have.length){
+    el.cookcount.innerHTML = '<em>' + recipes.length + '</em> ' + ui("recipes");
+    el.cookcount.style.opacity = ".55";
+    el.cookgrid.appendChild(emptyEl(ui("mCook"), ui("pantryEmpty"), ""));
     return;
   }
 
-  for(const r of rs){
-    const primary = r.tags.dish[0] ? "dish" : "ingredient";
-    const card = document.createElement("div");
-    card.className = "card" + (needsReview(r) ? " review" : "");
-    card.style.setProperty("--fam", needsReview(r) ? "var(--warn)" : famOf(primary).hue);
+  const ranked = recipes
+    .map(r => ({r, c: coverage(r, have)}))
+    .filter(x => x.c.total > 0)
+    .sort((a, b) => a.c.missing.length - b.c.missing.length ||
+                    a.c.total - b.c.total ||
+                    (a.r.minutes || 999) - (b.r.minutes || 999));
 
-    /* One label can sit in two families (noodles is both an ingredient and a
-       dish) — show it once on the card. */
-    const seen = new Set();
-    const flat = tagsOf(r).filter(k => {
-      const lbl = k.split(":").slice(1).join(":");
-      if(seen.has(lbl)) return false;
-      seen.add(lbl); return true;
-    });
-    const shown = flat.slice(0,4);
-    const rest = flat.length - shown.length;
+  const full = ranked.filter(x => x.c.missing.length === 0).length;
+  el.cookcount.style.opacity = "1";
+  el.cookcount.innerHTML = '<em>' + full + '</em> ' + ui("of") + ' ' + ranked.length +
+    ' ' + ui("ready");
+  for(const x of ranked.slice(0, 40)) el.cookgrid.appendChild(cardEl(x.r, x.c));
+}
 
-    const open = document.createElement("button");
-    open.className = "open";
-    open.type = "button";
-    open.innerHTML =
-      (needsReview(r)
-        ? '<span class="flag">' + ui("needsCheck") + '</span>'
-        : '<span class="eyebrow" style="color:var(--fam)">' +
-            tagLabel(r.tags.cuisine[0] || r.tags.dish[0] || "") + '</span>') +
-      '<h3>' + t(r.title) + '</h3>' +
-      '<div class="meta"><b>' + r.minutes + ' ' + ui("min") + '</b> · ' +
-        r.servings + ' ' + ui("servings") + ' · ' + r.protein + 'g ' + ui("protein") +
-        '<br>' + r.creator + '</div>' +
-      '<div class="card-tags">' +
-        shown.map(k => {
-          const f = famOf(k.split(":")[0]);
-          return '<span class="tag-mini" style="--fam:' + f.hue + '">' +
-            tagLabel(k.split(":").slice(1).join(":")) + '</span>';
-        }).join("") +
-        (rest > 0 ? '<span class="tag-mini more">+' + rest + '</span>' : '') +
-      '</div>' +
-      (store.tried[r.id] ? '<span class="flag done">' + ui("didCook") + '</span>' : '');
-    open.addEventListener("click", () => openRecipe(r.id));
-    card.appendChild(open);
+function renderList(){
+  const built = buildList();
+  const n = built.recipes.length;
+  const lines = built.groups.reduce((a, g) => a + g.items.length, 0);
+  el.listcount.innerHTML = '<em>' + lines + '</em> ' + ui("items");
 
-    const h = document.createElement("button");
-    h.className = "heart";
-    h.type = "button";
-    h.setAttribute("aria-pressed", store.favs[r.id] ? "true" : "false");
-    h.setAttribute("aria-label", "Favorite " + r.title.en);
-    h.innerHTML = '<svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 17S3 12.6 3 7.9A3.9 3.9 0 0 1 10 5.4 3.9 3.9 0 0 1 17 7.9C17 12.6 10 17 10 17Z" stroke-linejoin="round"/></svg>';
-    h.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      store.favs[r.id] = !store.favs[r.id];
-      persist(); render();
-    });
-    card.appendChild(h);
-    el.grid.appendChild(card);
+  el.listtools.innerHTML = "";
+  el.listbody.innerHTML = "";
+  if(!n){
+    el.listbody.appendChild(emptyEl(ui("mList"), ui("listEmpty"), ""));
+    return;
+  }
+
+  const copy = document.createElement("button");
+  copy.className = "btn ghost";
+  copy.type = "button";
+  copy.textContent = ui("copyList");
+  copy.addEventListener("click", () => {
+    const lines = [];
+    for(const g of built.groups){
+      lines.push(g.aisle.toUpperCase());
+      for(const row of g.items){
+        const a = amountText(row);
+        lines.push("  " + (L === "zh" ? tagLabel(row.item) : row.item) + (a ? " — " + a : ""));
+      }
+      lines.push("");
+    }
+    const text = lines.join("\n");
+    let ok = false;
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    }catch(e){ ok = false; }
+    copy.textContent = ok ? ui("copied") : "⌘C";
+    setTimeout(() => { copy.textContent = ui("copyList"); }, 1600);
+  });
+  el.listtools.appendChild(copy);
+
+  const clear = document.createElement("button");
+  clear.className = "btn ghost";
+  clear.type = "button";
+  clear.textContent = ui("clearList");
+  clear.addEventListener("click", () => {
+    store.basket = {}; store.checked = {};
+    persist(); render();
+  });
+  el.listtools.appendChild(clear);
+
+  const names = document.createElement("span");
+  names.style.cssText = "font-size:12.5px;color:var(--ink-3)";
+  names.textContent = ui("fromN") + " " + built.recipes.map(r => t(r.title)).join(" · ");
+  el.listtools.appendChild(names);
+
+  for(const g of built.groups){
+    const sec = document.createElement("section");
+    sec.className = "aisle";
+    const h = document.createElement("div");
+    h.className = "eyebrow";
+    h.textContent = g.aisle;
+    sec.appendChild(h);
+
+    for(const row of g.items){
+      const line = document.createElement("div");
+      line.className = "listrow";
+      const on = !!store.checked[row.item];
+      line.dataset.checked = on ? "1" : "0";
+      line.innerHTML =
+        '<span class="box" data-on="' + (on ? "1" : "0") + '">' + (on ? "✓" : "") + '</span>' +
+        '<span class="name">' + (L === "zh" ? tagLabel(row.item) : row.item) +
+          '<small>' + row.from.join(" · ") + '</small></span>' +
+        '<span class="amt">' + amountText(row) + '</span>';
+      line.addEventListener("click", () => {
+        if(store.checked[row.item]) delete store.checked[row.item];
+        else store.checked[row.item] = true;
+        persist(); renderList();
+      });
+      sec.appendChild(line);
+    }
+    el.listbody.appendChild(sec);
   }
 }
 
-function render(){ renderChrome(); renderRail(); renderViews(); renderPanel(); renderSelected(); renderGrid(); }
+function render(){
+  renderChrome();
+  renderModes();
+  if(mode === "library"){
+    renderRail(); renderViews(); renderPanel(); renderSelected(); renderGrid();
+  }else if(mode === "cook"){
+    renderCook();
+  }else{
+    renderList();
+  }
+}
 
 /* ============================================================
    6. INTERACTION
@@ -731,6 +1149,12 @@ function toggleTag(key){
 document.getElementById("q").addEventListener("input", e => {
   query = e.target.value.trim().toLowerCase(); render();
 });
+el.pantry.addEventListener("input", (e) => {
+  store.pantryText = e.target.value;
+  persist();
+  renderCook();
+});
+
 document.getElementById("mode-all").addEventListener("click", () => setMode("all"));
 document.getElementById("mode-any").addEventListener("click", () => setMode("any"));
 function setMode(m){

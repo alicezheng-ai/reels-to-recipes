@@ -1,12 +1,12 @@
 # Roadmap
 
-Four phases, ordered so each one makes the next cheaper. The ordering matters more than the individual designs: phase 2 is trivial now and expensive to retrofit, and phase 1 unlocks YouTube as a side effect rather than as its own feature. Recipe modification is in the backlog below rather than the sequence — it is the most complex of the four and the least load-bearing.
+**All four phases below are built.** They are kept here as the record of what was decided and why — the reasoning outlives the diff. Recipe modification is in the backlog rather than the sequence: the most complex of the options and the least load-bearing.
 
 ---
 
-## 1. One paste-inbox Google Doc — text and YouTube URLs
+## 1. ✅ One paste-inbox Google Doc — text and YouTube URLs
 
-**The change.** A single Google Doc, `Recipe Box/Inbox`, that never gets replaced. Paste recipe text or a YouTube link into it, separated by a line containing `---`. `processInbox()` reads the doc with `DocumentApp`, splits on the delimiter, and handles each block that isn't already marked done. Processed blocks get a `✓` prefixed to their first line, so nothing is deleted and re-runs skip what's finished.
+**The change.** A single Google Doc, `Recipe Box/Inbox`, that never gets replaced. Paste recipe text or a YouTube link into it, separated by a line containing `+++`. `processInbox()` reads the doc with `DocumentApp`, splits on the delimiter, and handles each block that isn't already marked done. Processed blocks get a `✓` prefixed to their first line, so nothing is deleted and re-runs skip what's finished.
 
 **Why YouTube comes free.** Gemini takes a YouTube URL directly as a `file_data` part — no download, no upload, no chunking, no size ceiling. A block that matches a YouTube URL and nothing else routes to that path; everything else is treated as recipe text. One inbox, three sources, one dispatcher.
 
@@ -23,7 +23,7 @@ Four phases, ordered so each one makes the next cheaper. The ordering matters mo
 
 ---
 
-## 2. Normalized ingredient fields
+## 2. ✅ Normalized ingredient fields
 
 **Do this before either grocery feature, and ideally before importing much more.** Ingredients are currently display strings — `{en: "2 cloves garlic", zh: "蒜 2 瓣"}`. Nothing can aggregate that.
 
@@ -42,7 +42,7 @@ Four phases, ordered so each one makes the next cheaper. The ordering matters mo
 
 ---
 
-## 3. Grocery list → recipes
+## 3. ✅ Grocery list → recipes
 
 **Cheapest feature here, and no backend work.** Matching pantry items against `tags.ingredient` is the filter that already exists, entered from the other end.
 
@@ -52,7 +52,7 @@ Once phase 2 lands this can match on `item` instead of the coarse tag vocabulary
 
 ---
 
-## 4. Recipes → grocery list
+## 4. ✅ Recipes → grocery list
 
 **The change.** Select recipes, aggregate their ingredients by `item`, sum `qty` where units agree, and list amounts side by side where they don't. Group by aisle — produce, protein, pantry, 调料 — which is a static map from `item`, not something to ask a model about.
 

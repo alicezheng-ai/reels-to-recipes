@@ -1,8 +1,9 @@
 /**
  * Reels to Recipes — backend
  *
- * Watches a Drive folder for reel videos, extracts a bilingual recipe with
- * Gemini, files it as JSON, and deletes the video. Serves the web interface.
+ * Watches a Drive folder for reel videos and a Google Doc for pasted text and
+ * YouTube links, extracts a bilingual recipe with Gemini, and files it as JSON.
+ * Serves the web interface.
  *
  * One-time setup: set the Gemini key in Script Properties, then run setup().
  */
@@ -12,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────
 const CONFIG = {
   ROOT: 'Recipe Box',          // Drive folder created by setup()
+  DOC: 'Inbox',                // the paste-here Doc, created by setup()
   MODEL: 'gemini-3.7-flash',   // gemini-3.5-flash-lite is cheaper if you want it
   DAILY_CAP: 40,               // extractions per day, guards the key
   MAX_MB: 200,                 // larger videos are parked, not extracted
@@ -42,6 +44,17 @@ const VOCAB = {
                'Mediterranean','Italian','Indian','American']
 };
 
+/** Where each ingredient lives in a store. Drives the grocery list grouping. */
+const AISLES = ['produce', 'protein', 'dairy & eggs', 'grains & noodles',
+                'pantry', 'seasoning', 'frozen', 'other'];
+
+const YOUTUBE_RE = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)[\w-]+/i;
+/* Separator between entries. Use +++ — Google Docs autocorrects "---" into an
+   em dash as you type, which is why dashes are only accepted, never suggested. */
+const BLOCK_SPLIT = /^\s*(\+{2,}|-{2,}|[–—]+)\s*$/;
+const DONE_MARK = '✓';
+const FAIL_MARK = '✗';
+
 // ─────────────────────────────────────────────────────────────
 // SETUP — run once from the editor
 // ─────────────────────────────────────────────────────────────
@@ -58,14 +71,32 @@ function setup() {
     props.setProperty(name.toUpperCase().replace('-', '_') + '_ID', f.getId());
   });
 
+  // The paste inbox. One Doc, forever — never replaced, only appended to.
+  let docFile = null;
+  const existing = root.getFilesByName(CONFIG.DOC);
+  if (existing.hasNext()) docFile = existing.next();
+  if (!docFile) {
+    const doc = DocumentApp.create(CONFIG.DOC);
+    doc.getBody().appendParagraph(
+      DONE_MARK + ' Paste recipe text or a YouTube link below, with a line of ' +
+      '+++ between entries. Processed entries get a ✓ and are skipped after ' +
+      'that. This line is marked done so it is never treated as a recipe.');
+    doc.getBody().appendParagraph('+++');
+    doc.saveAndClose();
+    docFile = DriveApp.getFileById(doc.getId());
+    docFile.moveTo(root);
+  }
+  props.setProperty('DOC_ID', docFile.getId());
+
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'processInbox') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('processInbox').timeBased().everyMinutes(15).create();
 
   rebuildIndex();
-  Logger.log('Ready. Drop videos in Drive → ' + CONFIG.ROOT + ' → inbox');
-  Logger.log('Inbox folder: https://drive.google.com/drive/folders/' + props.getProperty('INBOX_ID'));
+  Logger.log('Ready.');
+  Logger.log('Videos → https://drive.google.com/drive/folders/' + props.getProperty('INBOX_ID'));
+  Logger.log('Paste  → https://docs.google.com/document/d/' + docFile.getId() + '/edit');
 }
 
 function folderByName(parent, name) {
@@ -75,8 +106,18 @@ function folderByName(parent, name) {
 function folder(key) {
   return DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty(key + '_ID'));
 }
+function root() {
+  return DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('ROOT_ID'));
+}
 function apiKey() {
   return PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
+}
+function inboxDoc() {
+  return DocumentApp.openById(PropertiesService.getScriptProperties().getProperty('DOC_ID'));
+}
+function docUrl() {
+  return 'https://docs.google.com/document/d/' +
+    PropertiesService.getScriptProperties().getProperty('DOC_ID') + '/edit';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -97,14 +138,19 @@ function bootstrap() {
     recipes: readIndex().recipes,
     state: readState(),
     vocab: VOCAB,
-    pending: folder('INBOX').getFiles().hasNext() ? countInbox() : 0
+    aisles: AISLES,
+    docUrl: docUrl(),
+    pending: countPending()
   };
 }
 
-function countInbox() {
+/** Videos waiting plus unprocessed blocks in the Doc. */
+function countPending() {
   let n = 0;
   const it = folder('INBOX').getFiles();
   while (it.hasNext()) { if (isVideo(it.next())) n++; }
+  try { n += readBlocks().filter(function (b) { return !b.done; }).length; }
+  catch (e) { /* doc not set up yet */ }
   return n;
 }
 
@@ -114,9 +160,11 @@ function saveState(patch) {
   lock.waitLock(20000);
   try {
     const state = readState();
-    ['clicks', 'seeds', 'favs', 'notes', 'tried', 'confirmed'].forEach(function (k) {
-      if (patch[k]) state[k] = Object.assign(state[k] || {}, patch[k]);
-    });
+    ['clicks', 'seeds', 'favs', 'notes', 'tried', 'confirmed', 'basket', 'checked', 'pantry']
+      .forEach(function (k) {
+        if (patch[k]) state[k] = Object.assign(state[k] || {}, patch[k]);
+      });
+    if (patch.pantryText !== undefined) state.pantryText = patch.pantryText;
     writeJson(root(), 'state.json', state);
     return state;
   } finally {
@@ -127,15 +175,11 @@ function saveState(patch) {
 /** "Import now" button. Returns what changed so the page can refresh itself. */
 function importNow() {
   const n = processInbox();
-  return { imported: n, recipes: readIndex().recipes, pending: countInbox() };
-}
-
-function root() {
-  return DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('ROOT_ID'));
+  return { imported: n, recipes: readIndex().recipes, pending: countPending() };
 }
 
 // ─────────────────────────────────────────────────────────────
-// THE PIPELINE
+// THE PIPELINE — one dispatcher, three sources
 // ─────────────────────────────────────────────────────────────
 function processInbox() {
   const lock = LockService.getScriptLock();
@@ -144,22 +188,8 @@ function processInbox() {
   let done = 0;
 
   try {
-    const files = [];
-    const it = folder('INBOX').getFiles();
-    while (it.hasNext()) { const f = it.next(); if (isVideo(f)) files.push(f); }
-
-    for (let i = 0; i < files.length; i++) {
-      if (Date.now() > deadline) break;
-      if (!underDailyCap()) { Logger.log('Daily cap reached.'); break; }
-      try {
-        extractOne(files[i]);
-        bumpDailyCount();
-        done++;
-      } catch (err) {
-        Logger.log('Failed on ' + files[i].getName() + ': ' + err);
-        park(files[i], 'FAILED', String(err));
-      }
-    }
+    done += processVideos(deadline);
+    done += processDoc(deadline);
     if (done) rebuildIndex();
   } finally {
     lock.releaseLock();
@@ -167,101 +197,162 @@ function processInbox() {
   return done;
 }
 
-/** Drive sometimes stores a phone upload as application/octet-stream, so the
- *  extension is a second opinion rather than a fallback nobody needs. */
+/** Source 1: video files dropped in Drive. */
+function processVideos(deadline) {
+  const files = [];
+  const it = folder('INBOX').getFiles();
+  while (it.hasNext()) { const f = it.next(); if (isVideo(f)) files.push(f); }
+
+  let done = 0;
+  for (let i = 0; i < files.length; i++) {
+    if (Date.now() > deadline || !underDailyCap()) break;
+    try {
+      if (extractVideo(files[i])) { bumpDailyCount(); done++; }
+    } catch (err) {
+      Logger.log('Failed on ' + files[i].getName() + ': ' + err);
+      if (!isTransient(err)) park(files[i], 'FAILED', String(err));
+    }
+  }
+  return done;
+}
+
+/** Sources 2 and 3: text blocks and YouTube links in the paste Doc. */
+function processDoc(deadline) {
+  let blocks;
+  try { blocks = readBlocks(); }
+  catch (e) { Logger.log('No paste Doc yet — run setup(). ' + e); return 0; }
+
+  let done = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.done || !b.text.trim()) continue;
+    if (Date.now() > deadline || !underDailyCap()) break;
+    try {
+      const lines = b.text.split('\n').map(function (x) { return x.trim(); })
+                     .filter(function (x) { return x; });
+      const recipe = (lines.length === 1 && YOUTUBE_RE.test(lines[0]))
+        ? extractYouTube(lines[0])
+        : extractText(b.text);
+      mark(b, DONE_MARK + ' ' + recipe.title.en);
+      bumpDailyCount();
+      done++;
+    } catch (err) {
+      Logger.log('Failed on doc block ' + i + ': ' + err);
+      /* Leave transient failures unmarked so the next run picks them up. */
+      if (!isTransient(err)) mark(b, FAIL_MARK + ' ' + String(err).slice(0, 180));
+    }
+  }
+  return done;
+}
+
+/**
+ * The Doc as a list of entries. Blocks are separated by a line of dashes; the
+ * first paragraph of each carries the ✓ or ✗ marker, so re-runs skip finished
+ * work and nothing is ever deleted.
+ */
+function readBlocks() {
+  const paras = inboxDoc().getBody().getParagraphs();
+  const blocks = [];
+  let current = null;
+
+  for (let i = 0; i < paras.length; i++) {
+    const text = paras[i].getText();
+    if (BLOCK_SPLIT.test(text.trim())) { current = null; continue; }
+    if (!current) {
+      current = { head: paras[i], lines: [] };
+      blocks.push(current);
+    }
+    current.lines.push(text);
+  }
+
+  return blocks.map(function (b) {
+    const first = b.lines[0] || '';
+    return {
+      head: b.head,
+      text: b.lines.join('\n'),
+      done: first.indexOf(DONE_MARK) === 0 || first.indexOf(FAIL_MARK) === 0
+    };
+  });
+}
+
+/** Stamp a block's first line so the next run leaves it alone. */
+function mark(block, note) {
+  block.head.setText(note + ' — ' + block.head.getText());
+}
+
 function isVideo(file) {
   return /^video\//.test(file.getMimeType()) ||
          /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(file.getName());
 }
 
-/** Diagnostic: why did videos disappear? Reads every .why.txt in /failed. */
-function showFailures() {
-  const it = folder('FAILED').getFiles();
-  let n = 0;
-  while (it.hasNext()) {
-    const f = it.next();
-    if (!/\.why\.txt$/.test(f.getName())) continue;
-    n++;
-    Logger.log(f.getName().replace('.why.txt', '') + '\n    → ' + f.getBlob().getDataAsString() + '\n');
-  }
-  if (!n) Logger.log('Nothing in /failed. Check /done and /too-large.');
-  return n;
+function park(file, folderKey, note) {
+  const dest = folder(folderKey === 'FAILED' ? 'FAILED' : 'TOO_LARGE');
+  file.moveTo(dest);
+  dest.createFile(file.getName() + '.why.txt', note);
 }
 
-/** Diagnostic: what does the script actually see in the inbox? */
-function whatsInInbox() {
-  const it = folder('INBOX').getFiles();
-  let n = 0;
-  while (it.hasNext()) {
-    const f = it.next();
-    n++;
-    Logger.log([n + '.', f.getName(), '|', f.getMimeType(), '|',
-                (f.getSize() / 1048576).toFixed(1) + 'MB', '|',
-                isVideo(f) ? 'WILL EXTRACT' : 'ignored'].join(' '));
-  }
-  if (!n) Logger.log('Inbox is empty. Folder: https://drive.google.com/drive/folders/' +
-                     PropertiesService.getScriptProperties().getProperty('INBOX_ID'));
-  return n;
-}
-
-function extractOne(file) {
-  const mb = file.getSize() / 1048576;
-  if (mb > CONFIG.MAX_MB) {
-    park(file, 'TOO_LARGE', 'Video is ' + mb.toFixed(0) + 'MB, over the ' +
-      CONFIG.MAX_MB + 'MB limit. Trim it, or raise MAX_MB in CONFIG.');
-    return;
-  }
-
-  // A caption saved alongside the video as <same name>.txt is used as context.
-  const caption = readCaption(file.getName());
-
-  const uploaded = uploadToGemini(file);
-  try {
-    waitForActive(uploaded.name);
-    const raw = generate(uploaded.uri, file.getMimeType(), caption);
-    const recipe = normalize(raw, file, caption);
-    writeJson(folder('RECIPES'), recipe.id + '.json', recipe);
-    retire(file);
-    return recipe;
-  } finally {
-    deleteGeminiFile(uploaded.name); // never leave the video on Google's side
-  }
-}
-
-/** The video's job is done. Where it goes depends on how much you trust this. */
 function retire(file) {
   if (CONFIG.KEEP_VIDEOS) file.moveTo(folder('DONE'));
   else file.setTrashed(true);
 }
 
-/**
- * TRIAL RUN — run this from the editor, not the web app.
- * Takes one video from the inbox, extracts it, logs the whole record, and
- * always keeps the video regardless of KEEP_VIDEOS. Nothing is deleted, so you
- * can read the output and run it again on the same file if the prompt needs
- * work: move the video from /done back to /inbox and run it again.
- */
-function dryRun(fileName) {
-  const it = fileName ? folder('INBOX').getFilesByName(fileName) : folder('INBOX').getFiles();
-  let target = null;
-  while (it.hasNext()) { const f = it.next(); if (isVideo(f)) { target = f; break; } }
-  if (!target) throw new Error('No video found in the inbox' + (fileName ? ' named ' + fileName : '') + '.');
+// ─────────────────────────────────────────────────────────────
+// EXTRACTION — one per source, all landing in the same place
+// ─────────────────────────────────────────────────────────────
+function extractVideo(file) {
+  const mb = file.getSize() / 1048576;
+  if (mb > CONFIG.MAX_MB) {
+    park(file, 'TOO_LARGE', 'Video is ' + mb.toFixed(0) + 'MB, over the ' +
+      CONFIG.MAX_MB + 'MB limit. Trim it, or raise MAX_MB in CONFIG.');
+    return null;
+  }
 
-  const keep = CONFIG.KEEP_VIDEOS;
-  CONFIG.KEEP_VIDEOS = true;
+  const caption = readCaption(file.getName());
+  const uploaded = uploadToGemini(file);
   try {
-    const t0 = Date.now();
-    const recipe = extractOne(target);
-    if (!recipe) throw new Error('Video was parked, not extracted — check /too-large.');
-    rebuildIndex();
-    Logger.log('Extracted "' + target.getName() + '" in ' + ((Date.now() - t0) / 1000).toFixed(0) + 's');
-    Logger.log(JSON.stringify(recipe, null, 2));
-    if (recipe.needsReview) Logger.log('FLAGGED:\n- ' + recipe.reviewFlags.en.join('\n- '));
-    if (recipe.suggestedTags.length) Logger.log('Wanted tags you do not have: ' + recipe.suggestedTags.join(', '));
+    waitForActive(uploaded.name);
+    const parts = [
+      { file_data: { mime_type: file.getMimeType(), file_uri: uploaded.uri } },
+      { text: prompt(caption) }
+    ];
+    const recipe = finish(generate(parts), {
+      id: idFor(file.getName()),
+      sourceFile: file.getName(),
+      source: 'video',
+      hadCaption: !!caption
+    });
+    retire(file);
     return recipe;
   } finally {
-    CONFIG.KEEP_VIDEOS = keep;
+    deleteGeminiFile(uploaded.name);   // never leave the video on Google's side
   }
+}
+
+function extractYouTube(url) {
+  const parts = [{ file_data: { file_uri: url } }, { text: prompt('') }];
+  return finish(generate(parts), {
+    id: idFor(url),
+    sourceFile: url,
+    source: 'youtube',
+    hadCaption: false
+  });
+}
+
+function extractText(text) {
+  const parts = [{ text: prompt('') + '\n\nRECIPE TEXT:\n"""\n' + text + '\n"""' }];
+  return finish(generate(parts), {
+    id: idFor(text.slice(0, 400)),
+    sourceFile: text.trim().split('\n')[0].slice(0, 80),
+    source: 'text',
+    hadCaption: true          // pasted text IS the caption
+  });
+}
+
+/** Normalize, write, return. Shared tail of every source. */
+function finish(raw, meta) {
+  const recipe = normalize(raw, meta);
+  writeJson(folder('RECIPES'), recipe.id + '.json', recipe);
+  return recipe;
 }
 
 function readCaption(videoName) {
@@ -274,15 +365,10 @@ function readCaption(videoName) {
   return text;
 }
 
-function park(file, folderKey, note) {
-  const dest = folder(folderKey === 'FAILED' ? 'FAILED' : 'TOO_LARGE');
-  file.moveTo(dest);
-  dest.createFile(file.getName() + '.why.txt', note);
-}
-
 // ─────────────────────────────────────────────────────────────
 // GEMINI
 // ─────────────────────────────────────────────────────────────
+
 /**
  * Uploads in slices. Apps Script caps a single request body around 50MB and a
  * whole reel will not fit in memory either, so the file is streamed: read a
@@ -379,41 +465,58 @@ function deleteGeminiFile(name) {
   } catch (e) { /* it expires on its own in 48h anyway */ }
 }
 
-function generate(fileUri, mimeType, caption) {
+/** 503 and 429 mean "busy", not "broken" — wait and ask again before giving up. */
+const TRANSIENT = [429, 500, 502, 503, 504];
+
+function generate(parts) {
   const body = {
-    contents: [{
-      parts: [
-        { file_data: { mime_type: mimeType, file_uri: fileUri } },
-        { text: prompt(caption) }
-      ]
-    }],
+    contents: [{ parts: parts }],
     generationConfig: {
       temperature: 0.2,
       responseMimeType: 'application/json',
       responseSchema: SCHEMA
     }
   };
-  const res = UrlFetchApp.fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/' + CONFIG.MODEL + ':generateContent?key=' + apiKey(),
-    { method: 'post', contentType: 'application/json',
-      payload: JSON.stringify(body), muteHttpExceptions: true });
-  if (res.getResponseCode() >= 300) throw new Error('Gemini: ' + res.getContentText());
-  const out = JSON.parse(res.getContentText());
-  const text = out.candidates[0].content.parts[0].text;
-  return JSON.parse(text);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+              CONFIG.MODEL + ':generateContent?key=' + apiKey();
+
+  let last = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) Utilities.sleep(attempt === 1 ? 6000 : 18000);
+    const res = UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify(body), muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    if (code < 300) {
+      const out = JSON.parse(res.getContentText());
+      return JSON.parse(out.candidates[0].content.parts[0].text);
+    }
+    last = res.getContentText();
+    if (TRANSIENT.indexOf(code) === -1) throw new Error('Gemini: ' + last);
+    Logger.log('Gemini ' + code + ', retrying (' + (attempt + 1) + '/3)');
+  }
+  throw new Error('BUSY Gemini is overloaded — will retry on the next run. ' + last.slice(0, 200));
+}
+
+/** Worth trying again later rather than filing as a failure. */
+function isTransient(err) {
+  return String(err).indexOf('BUSY') !== -1;
 }
 
 function prompt(caption) {
   return [
-    'You are reading a recipe video saved from Instagram. Watch it, read every word',
-    'of on-screen text, and listen to the narration. Produce one recipe record.',
+    'You are reading a recipe — from a video, or from text pasted below. Watch and',
+    'listen to whatever media is attached, read every word of on-screen text, and',
+    'produce one recipe record.',
     '',
     caption ? 'The creator\'s caption, which usually holds the ingredient list:\n"""\n' + caption + '\n"""\n' : '',
     'Quantities — the cook wants a usable recipe, not a transcript:',
     '- Give every ingredient an amount. Use what is stated or visibly shown.',
     '- When no amount is given, infer a sensible one for the stated servings and',
-    '  mark it as your estimate: "~2 tbsp" in English, "约2汤匙" in Chinese. Savoury',
-    '  home cooking is forgiving, and a reasonable estimate beats a blank line.',
+    '  mark it as your estimate: "~2 tbsp" in English, "约2汤匙" in Chinese, and set',
+    '  estimated to true. Savoury home cooking is forgiving, and a reasonable',
+    '  estimate beats a blank line.',
     '- Leave an amount out only when you cannot even estimate it sensibly.',
     '',
     'The one exception is BAKING — anything with flour, leavening, a batter, a dough,',
@@ -422,8 +525,18 @@ function prompt(caption) {
     'needsReview to true, and write a flag naming the ratio to look up, e.g.',
     '"Flour-to-butter ratio was never stated — check a standard shortcrust ratio."',
     '',
-    'needsReview is ONLY for that baking case, or when the video was too unclear to',
+    'needsReview is ONLY for that baking case, or when the source was too unclear to',
     'read at all. A savoury recipe with estimated amounts is finished, not flagged.',
+    '',
+    'Every ingredient also carries structured fields used to build shopping lists:',
+    '- item: the shopping name, lowercase English, singular, no amount and no',
+    '  preparation. "2 cloves garlic, minced" gives item "garlic"; "葱花" gives',
+    '  "scallion". Pick the same word every time so the same thing from twenty',
+    '  recipes collapses into one line — prefer "scallion" over "spring onion",',
+    '  "soy sauce" over "light soy", "chicken thigh" over "boneless chicken thigh".',
+    '- qty and unit: the number and its unit ("clove", "tbsp", "g", "piece"). Omit',
+    '  both for things measured to taste.',
+    '- aisle: exactly one of ' + AISLES.join(', ') + '.',
     '',
     'Write both languages natively. The English should read like a competent home',
     'cook wrote it: imperative, specific, no filler. The Chinese should read like a',
@@ -452,16 +565,30 @@ const BILINGUAL = {
   required: ['en', 'zh']
 };
 
+const INGREDIENT = {
+  type: 'OBJECT',
+  properties: {
+    en: { type: 'STRING' },
+    zh: { type: 'STRING' },
+    item: { type: 'STRING', description: 'lowercase English shopping name, singular' },
+    qty: { type: 'NUMBER' },
+    unit: { type: 'STRING' },
+    aisle: { type: 'STRING', enum: AISLES },
+    estimated: { type: 'BOOLEAN' }
+  },
+  required: ['en', 'zh', 'item', 'aisle']
+};
+
 const SCHEMA = {
   type: 'OBJECT',
   properties: {
     title: BILINGUAL,
-    creator: { type: 'STRING', description: 'Instagram handle if visible, else empty' },
+    creator: { type: 'STRING', description: 'handle or source name if visible, else empty' },
     minutes: { type: 'INTEGER' },
     servings: { type: 'INTEGER' },
     kcal: { type: 'INTEGER' },
     protein: { type: 'INTEGER' },
-    ingredients: { type: 'ARRAY', items: BILINGUAL },
+    ingredients: { type: 'ARRAY', items: INGREDIENT },
     steps: { type: 'ARRAY', items: BILINGUAL },
     babyNote: BILINGUAL,
     tags: {
@@ -494,11 +621,8 @@ const SCHEMA = {
 // ─────────────────────────────────────────────────────────────
 // NORMALIZE — the model's output is a proposal, not the record
 // ─────────────────────────────────────────────────────────────
-function normalize(raw, file, caption) {
-  const flagsEn = (raw.reviewFlags && raw.reviewFlags.en) || [];
-  const flagsZh = (raw.reviewFlags && raw.reviewFlags.zh) || [];
+function normalize(raw, meta) {
   const dropped = [];
-
   const tags = {};
   Object.keys(VOCAB).forEach(function (fam) {
     const allowed = VOCAB[fam];
@@ -509,10 +633,23 @@ function normalize(raw, file, caption) {
     });
   });
 
+  const ingredients = (raw.ingredients || []).map(function (i) {
+    return {
+      en: i.en || '',
+      zh: i.zh || '',
+      item: (i.item || '').toLowerCase().trim(),
+      qty: (typeof i.qty === 'number' && isFinite(i.qty)) ? i.qty : null,
+      unit: (i.unit || '').toLowerCase().trim(),
+      aisle: AISLES.indexOf(i.aisle) !== -1 ? i.aisle : 'other',
+      estimated: !!i.estimated
+    };
+  });
+
   return {
-    id: idFor(file.getName()),
-    sourceFile: file.getName(),
-    hadCaption: !!caption,
+    id: meta.id,
+    sourceFile: meta.sourceFile,
+    source: meta.source,
+    hadCaption: meta.hadCaption,
     importedAt: new Date().toISOString(),
     creator: raw.creator || '',
     title: raw.title,
@@ -520,22 +657,25 @@ function normalize(raw, file, caption) {
     servings: raw.servings || 0,
     kcal: raw.kcal || 0,
     protein: raw.protein || 0,
-    ingredients: raw.ingredients || [],
+    ingredients: ingredients,
     steps: raw.steps || [],
     babyNote: (raw.babyNote && raw.babyNote.en) ? raw.babyNote : null,
     tags: tags,
     suggestedTags: (raw.suggestedTags || []).concat(dropped),
     needsReview: !!raw.needsReview,
-    reviewFlags: { en: flagsEn, zh: flagsZh }
+    reviewFlags: {
+      en: (raw.reviewFlags && raw.reviewFlags.en) || [],
+      zh: (raw.reviewFlags && raw.reviewFlags.zh) || []
+    }
   };
 }
 
 /**
- * The id is a hash of the source filename, not a random uuid. Extracting the
- * same video twice then overwrites one record instead of making a second one.
+ * The id is a hash of the source, not a random uuid. Extracting the same video,
+ * link or text twice then overwrites one record instead of making a second one.
  */
-function idFor(name) {
-  const base = name.replace(/\.[^.]+$/, '').toLowerCase();
+function idFor(seed) {
+  const base = String(seed).replace(/\.[^.]+$/, '').toLowerCase().trim();
   const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, base, Utilities.Charset.UTF_8);
   let hex = '';
   for (let i = 0; i < 4; i++) hex += ('0' + (digest[i] & 0xFF).toString(16)).slice(-2);
@@ -546,7 +686,7 @@ function idFor(name) {
 // STORAGE
 // ─────────────────────────────────────────────────────────────
 
-/** Called from the page's delete button. Trashes one recipe, keeps the video. */
+/** Called from the page's delete button. Trashes one recipe, keeps the source. */
 function deleteRecipe(id) {
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(id))) throw new Error('Bad recipe id.');
   const it = folder('RECIPES').getFilesByName(id + '.json');
@@ -557,7 +697,7 @@ function deleteRecipe(id) {
 }
 
 /**
- * Maintenance: collapse recipes that came from the same video. Keeps the most
+ * Maintenance: collapse recipes that came from the same source. Keeps the most
  * recently imported one and trashes the rest. Run it from the editor.
  */
 function dedupe() {
@@ -583,6 +723,7 @@ function dedupe() {
   Logger.log(removed ? 'Removed ' + removed + ' duplicate(s).' : 'No duplicates found.');
   return removed;
 }
+
 function rebuildIndex() {
   const recipes = [];
   const it = folder('RECIPES').getFiles();
@@ -604,9 +745,11 @@ function readIndex() {
 }
 
 function readState() {
+  const blank = { clicks: {}, seeds: {}, favs: {}, notes: {}, tried: {},
+                  confirmed: {}, basket: {}, checked: {}, pantryText: '' };
   const it = root().getFilesByName('state.json');
-  if (!it.hasNext()) return { clicks: {}, seeds: {}, favs: {}, notes: {}, tried: {}, confirmed: {} };
-  return JSON.parse(it.next().getBlob().getDataAsString());
+  if (!it.hasNext()) return blank;
+  return Object.assign(blank, JSON.parse(it.next().getBlob().getDataAsString()));
 }
 
 function writeJson(parent, name, obj) {
@@ -617,6 +760,79 @@ function writeJson(parent, name, obj) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// DIAGNOSTICS — run these from the editor
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Extracts one item, logs the whole record, and always keeps the source.
+ * Pass nothing for the first inbox video, or a filename, or a YouTube URL,
+ * or a block of recipe text.
+ */
+function dryRun(input) {
+  const t0 = Date.now();
+  let recipe;
+
+  if (input && YOUTUBE_RE.test(String(input).trim())) {
+    recipe = extractYouTube(String(input).trim());
+  } else if (input && String(input).indexOf('\n') !== -1) {
+    recipe = extractText(String(input));
+  } else {
+    const it = input ? folder('INBOX').getFilesByName(String(input)) : folder('INBOX').getFiles();
+    let target = null;
+    while (it.hasNext()) { const f = it.next(); if (isVideo(f)) { target = f; break; } }
+    if (!target) throw new Error('No video found in the inbox' + (input ? ' named ' + input : '') + '.');
+    const keep = CONFIG.KEEP_VIDEOS;
+    CONFIG.KEEP_VIDEOS = true;
+    try { recipe = extractVideo(target); } finally { CONFIG.KEEP_VIDEOS = keep; }
+    if (!recipe) throw new Error('Video was parked, not extracted — check /too-large.');
+  }
+
+  rebuildIndex();
+  Logger.log('Extracted in ' + ((Date.now() - t0) / 1000).toFixed(0) + 's');
+  Logger.log(JSON.stringify(recipe, null, 2));
+  if (recipe.needsReview) Logger.log('FLAGGED:\n- ' + recipe.reviewFlags.en.join('\n- '));
+  if (recipe.suggestedTags.length) Logger.log('Wanted tags you do not have: ' + recipe.suggestedTags.join(', '));
+  return recipe;
+}
+
+/** What does the script actually see, in both inboxes? */
+function whatsPending() {
+  let n = 0;
+  const it = folder('INBOX').getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    n++;
+    Logger.log([n + '.', f.getName(), '|', f.getMimeType(), '|',
+                (f.getSize() / 1048576).toFixed(1) + 'MB', '|',
+                isVideo(f) ? 'WILL EXTRACT' : 'ignored'].join(' '));
+  }
+  if (!n) Logger.log('No files in the video inbox.');
+
+  const blocks = readBlocks();
+  const waiting = blocks.filter(function (b) { return !b.done && b.text.trim(); });
+  Logger.log('Doc: ' + blocks.length + ' block(s), ' + waiting.length + ' waiting.');
+  waiting.forEach(function (b, i) {
+    Logger.log('  ' + (i + 1) + '. ' + b.text.slice(0, 90).replace(/\n/g, ' ⏎ '));
+  });
+  Logger.log('Paste here: ' + docUrl());
+  return n + waiting.length;
+}
+
+/** Why did videos disappear? Reads every .why.txt in /failed. */
+function showFailures() {
+  const it = folder('FAILED').getFiles();
+  let n = 0;
+  while (it.hasNext()) {
+    const f = it.next();
+    if (!/\.why\.txt$/.test(f.getName())) continue;
+    n++;
+    Logger.log(f.getName().replace('.why.txt', '') + '\n    → ' + f.getBlob().getDataAsString() + '\n');
+  }
+  if (!n) Logger.log('Nothing in /failed. Failed doc entries are marked ✗ in the Doc itself.');
+  return n;
+}
+
+// ─────────────────────────────────────────────────────────────
 // GUARD RAILS
 // ─────────────────────────────────────────────────────────────
 function todayKey() {
@@ -624,6 +840,7 @@ function todayKey() {
 }
 function underDailyCap() {
   const n = Number(PropertiesService.getScriptProperties().getProperty(todayKey()) || 0);
+  if (n >= CONFIG.DAILY_CAP) Logger.log('Daily cap reached.');
   return n < CONFIG.DAILY_CAP;
 }
 function bumpDailyCount() {
