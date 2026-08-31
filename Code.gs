@@ -15,6 +15,7 @@ const CONFIG = {
   ROOT: 'Recipe Box',          // Drive folder created by setup()
   DOC: 'Inbox',                // the paste-here Doc, created by setup()
   MODEL: 'gemini-3.7-flash',   // gemini-3.5-flash-lite is cheaper if you want it
+  FALLBACK_MODEL: 'gemini-3.5-flash-lite',  // tried when the primary stays busy
   DAILY_CAP: 40,               // extractions per day, guards the key
   MAX_MB: 200,                 // larger videos are parked, not extracted
   CHUNK_MB: 8,                 // upload slice size; keeps memory and each request small
@@ -477,26 +478,38 @@ function generate(parts) {
       responseSchema: SCHEMA
     }
   };
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-              CONFIG.MODEL + ':generateContent?key=' + apiKey();
+  const url = function (model) {
+    return 'https://generativelanguage.googleapis.com/v1beta/models/' +
+           model + ':generateContent?key=' + apiKey();
+  };
 
+  const models = [CONFIG.MODEL, CONFIG.FALLBACK_MODEL].filter(Boolean);
   let last = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) Utilities.sleep(attempt === 1 ? 6000 : 18000);
-    const res = UrlFetchApp.fetch(url, {
-      method: 'post', contentType: 'application/json',
-      payload: JSON.stringify(body), muteHttpExceptions: true
-    });
-    const code = res.getResponseCode();
-    if (code < 300) {
-      const out = JSON.parse(res.getContentText());
-      return JSON.parse(out.candidates[0].content.parts[0].text);
+
+  for (let m = 0; m < models.length; m++) {
+    const attempts = m === 0 ? 3 : 2;
+    for (let a = 0; a < attempts; a++) {
+      if (a) Utilities.sleep(a === 1 ? 6000 : 18000);
+      const res = UrlFetchApp.fetch(url(models[m]), {
+        method: 'post', contentType: 'application/json',
+        payload: JSON.stringify(body), muteHttpExceptions: true
+      });
+      const code = res.getResponseCode();
+      if (code < 300) {
+        if (m > 0) Logger.log('Extracted with the fallback model, ' + models[m]);
+        const out = JSON.parse(res.getContentText());
+        return JSON.parse(out.candidates[0].content.parts[0].text);
+      }
+      last = res.getContentText();
+      /* A permanent error on the primary is a bad request, not bad luck — the
+         fallback would fail the same way, so stop. */
+      if (TRANSIENT.indexOf(code) === -1) throw new Error('Gemini: ' + last);
+      Logger.log(models[m] + ' returned ' + code + ', retry ' + (a + 1) + '/' + attempts);
     }
-    last = res.getContentText();
-    if (TRANSIENT.indexOf(code) === -1) throw new Error('Gemini: ' + last);
-    Logger.log('Gemini ' + code + ', retrying (' + (attempt + 1) + '/3)');
+    if (m + 1 < models.length) Logger.log('Still busy — falling back to ' + models[m + 1]);
   }
-  throw new Error('BUSY Gemini is overloaded — will retry on the next run. ' + last.slice(0, 200));
+  throw new Error('BUSY every model is overloaded — leaving this one for the next run. ' +
+                  last.slice(0, 200));
 }
 
 /** Worth trying again later rather than filing as a failure. */
